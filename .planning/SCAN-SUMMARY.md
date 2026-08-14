@@ -188,3 +188,67 @@ All five have unit/integration coverage; §8 lists the exact validation performe
 | Security headers live | **PASS** (curl verified) |
 | CORS safe (wildcard ⇒ no credentials) | **PASS** |
 | Auth limitation documented | **PASS** (README + AGENTS.md) |
+
+## 15. Final Project Completion Audit (Prompt: release audit)
+
+Executed 2026-08-14 after commit `faa0041`. Re-ran every validation command, re-inspected
+routes/tests/components, re-grepped for secrets and `dangerouslySetInnerHTML`, and
+traced each checklist item against the implementation. No code changes were required —
+the audit confirmed the Prompt 10 state. One new non-blocking observation (QA-09).
+
+### Audit checklist results
+
+| Checklist item | Result | Evidence |
+|---|---|---|
+| Scan submit/list/detail/promote E2E | **PASS** (code+tests); DB E2E **REQUIRES VERIFICATION** | 18 tests in `test_scans_api.py`: 201+queued, background in queued order, list w/ finding_count, detail w/ findings, promote 201/409-twice/404-wrong-scan/404-missing |
+| Rules-only degradation | **PASS** (unit) | 7 tests in `test_scanner_llm_parse.py`: refusal, missing parsed, OpenAIError, generic exception, empty key (no request), empty files (no request) |
+| Critical/high auto-incident | **PASS** (unit) | `test_run_scan_persists_findings_and_auto_promotes`; dedupe via `_scan_findings` unique hash |
+| Deterministic finding IDs / rescan dedupe | **PASS** (unit) | SHA1-based `_scan_finding_id`; completed rescans don't conflict (test), duplicate incident creation deduped by unique constraint + `_dedup_incident` logic |
+| Orphan sweep | **PASS** (unit) + **REQUIRES VERIFICATION** (E2E) | registered `main.py:22` lifespan; `sweep_orphaned_scans` `scanner.py:859` |
+| Empty log upload no 500 | **PASS** | `logs.py:43-103` returns 200/0/0 for empty & whitespace files; `test_upload_empty_file_*`, `test_upload_whitespace_only_file_*` |
+| Search preserves per-row service/level | **PASS** | `test_search_uses_each_rows_own_service_and_level` + filter test |
+| Incident detail page | **PASS** | full loading/404/error(retry)/success states, plain-text fields, `<pre>` metadata |
+| `/scans` page + ScanForm/ScanList/ScanDetail | **PASS** | all four compile (build route table); ScanForm client validation mirrors server (https, host allowlist, credentials, `..`, length, leading `-`); loading/empty/error/success states in both lists; sub-scores from `metadata`; evidence in `<details><pre>` plain text |
+| No broken nav / 404 routes | **PASS** | all 8 pages build; `_not-found` present; sidebar/homepage/topbar links resolve (QA-03 placeholders documented, non-broken) |
+| TS / lint / build | **PASS** / **PASS** / **PASS** | re-run this audit; build emits only the known recharts `width(-1)` stderr warning |
+| Scoring functions | **PASS** | 12 tests: 100→A, 75→B, 50→C, 25→D, 0→F, grade boundaries, sub-scores per category + floor at 0 |
+| LLM Structured Outputs | **PASS** | `llm_review` uses `response_format=LLMReview` (asserted in test), `refusal` honored |
+| `run_scan` async Shape B | **PASS** | `async def run_scan(scan_id: str, repo_url: str) -> dict` in-place transition (QA-01 fix, commit `faa0041`) |
+| 4 scan endpoints + router + startup sweep registered | **PASS** | `scans.py` (POST/GET /scans, GET /scans/{id}, POST /scans/{id}/findings/{fid}/promote); router in `main.py` |
+| CORS safe | **PASS** | `allow_origins` from settings; `allow_credentials` = False when wildcard (`config.py:29`) |
+| Security headers | **PASS** | `SecurityHeadersMiddleware` (`main.py:65`); curl-verified headers |
+| Anomaly params bounded | **PASS** | `anomalies.py` bounds: window 1–24h, contamination 0.01–0.5, n_neighbors 5–100 (422 on violation) |
+| Schema auto-creation / 5 tables | **REQUIRES VERIFICATION** (no Postgres) | `database.py` SCHEMA_SQL has all 5 tables; `DATABASE_SCHEMA.md` matches; not run against real PG |
+| No unintended SQLite app.db | **PASS** | `git ls-files` + filesystem: no `app.db`/sqlite anywhere in repo |
+| Scan API contract (201/400/404/409) | **PASS** | 18 tests incl. 400 invalid URL, 409 duplicate active, 404 missing scan/finding, 409 promote-twice, 422 missing URL |
+| Health/logs/incidents/anomalies/search endpoints | **PASS** | route inventory (17 paths) + existing suites (`test_logs_search_routes.py` 7 tests; `test_security.py` 17; health verified live) |
+| No-auth posture documented | **PASS** | README/AGENTS limitation; production guidance = VPN/SSO/access layer; auth + RLS listed as roadmap |
+| URL allowlist enforced server-side | **PASS** | `validate_repo_url` in scanner; 11 tests incl. `%2e%2e`, trailing dot, credentials, unknown host, length, leading dash, https-only |
+| Evidence truncation + masking | **PASS** | `_truncate` (12k/file, 600k total) + `_mask_secrets`; tests in `test_scanner_rules.py` (masking verified earlier) |
+| Encoded traversal / unsafe schemes / creds in URL rejected | **PASS** | URL validation tests + ValueError paths |
+| No avoidable 500s on invalid input | **PASS** | Pydantic bounds + validation-tests; `errors[:20]` on upload; LLM exceptions never crash scan |
+| Scan failures → `failed` w/ readable message | **PASS** | `run_scan` try/except sets `failed` + `error` (invalid URL, clone failure tests) |
+| DB-down startup env-aware | **PASS** | dev: warns + continues, `/health` degraded; prod: fails hard (verified code + earlier run) |
+| LLM failure doesn't crash scans | **PASS** | fallback matrix tests |
+| No secrets in tracked files / `.env` ignored | **PASS** | `git check-ignore backend/.env` hit; `git ls-files` no `.env`; all `sk-`/`ghp_`/`AKIA` matches benign (placeholder `sk-your-key-here`, regex defs, AWS doc-example fixtures, planning docs) |
+| No `dangerouslySetInnerHTML` in scan UI (or anywhere) | **PASS** | repo-wide grep: only planning docs + the scanner rule regex |
+| SSRF protections intact | **PASS** | allowlist + https-only + `..`/`%2e%2e` + credential checks in `_build_clone_cmd`/validation; `test_scanner_url_validation.py` |
+| No secrets printed in tests/logging | **PASS** | fake key `sk-test-key` in one test; no logging of key values in app code |
+| pytest suite ≥45, offline | **PASS** | 163 tests, `pytest -q` green in 1.03s, no DB/network |
+| Every rule +/− coverage | **PASS** | 20 rules × (positive + negative) = 41 tests in `test_scanner_rules.py` |
+| LLM fallback matrix / URL validation / scoring boundaries | **PASS** | covered above |
+| Perf caps (50MB / 2000 files / 10 LLM files / 600k chars / 2 concurrent) | **PASS** | `config.py` defaults wired into walker/LLM/semaphore; `_abort_if_over_limits` tested |
+| Polling stops at terminal state | **PASS** | `hooks.ts:58-60` (list) + `67-70` (detail) — interval off when completed/failed |
+| Temp dir cleanup | **PASS** (DB-free path, retry) / **REQUIRES VERIFICATION** (full E2E) | `_rmtree_retry` exercised live; unit coverage |
+| Responsive scan UI | **PASS** | `flex-col sm:flex-row`, `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`, `overflow-x-auto`, `flex-wrap` everywhere |
+| Semantic controls / labels / keyboard | **PASS** (with QA-09) | form + `aria-label` on input, `role="alert"` errors, real `<button>`s, native `<details>/<summary>`; status text + badge (not color-only) |
+| render.yaml | **PASS** | `rootDir: backend`, `pip install -r requirements.txt`, `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, managed PG, `OPENAI_API_KEY` sync:false |
+| Production doesn't serve raw Next source | **PASS** | frontend deployed separately (documented in README); backend image copies only `app/` |
+| Docker config | **PASS** (inspection) / **REQUIRES VERIFICATION** (build/run) | `Dockerfile` + `docker-compose.yml` structurally valid; no docker binary on QA machine |
+| Final commit + clean tree | **PASS** | `faa0041` "feat: finalize security scan MVP"; `git status` clean |
+
+### New observation (non-blocking)
+
+| ID | Finding | Severity | Where | Status |
+|---|---|---|---|---|
+| QA-09 | `ScanList` rows select via `<tr onClick>` only — mouse-driven, not keyboard-focusable | Low (a11y) | `frontend/src/components/scans/ScanList.tsx:78` | Documented only. Follow-up: wrap row content in a focusable button/link or add `onKeyDown` + `tabIndex`. Not a release blocker (list remains usable via mouse/touch; form and detail interactions are keyboard-accessible). |
