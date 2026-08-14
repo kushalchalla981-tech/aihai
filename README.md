@@ -219,15 +219,18 @@ a managed PostgreSQL database:
 
 ### Frontend — Vercel (or any Node host)
 
-The root-level `vercel.json` sets `rootDirectory: "frontend"`, so you can import
-the repository root directly (framework auto-detects Next.js).
+The Next.js app lives in `frontend/`, so the Vercel project must be pointed at
+that directory (Vercel's `vercel.json` schema rejects a `rootDirectory` key;
+use the project setting instead):
 
-1. Import the repository (Vercel reads `vercel.json` and builds `frontend/`).
-2. Add a `BACKEND_URL` environment variable in the Vercel project settings set
+1. Import the repository root.
+2. In the Vercel project: **Settings → General → Root Directory = `frontend`**
+   (framework auto-detects Next.js).
+3. Add a `BACKEND_URL` environment variable in the Vercel project settings set
    to the deployed backend URL (e.g. `https://ai-incident-copilot.onrender.com`).
    `next.config.mjs` proxies `/api/*` and `/health` there; locally it defaults
    to `http://localhost:8000`.
-3. Deploy.
+4. Deploy.
 
 > The backend is a long-running service (background scan tasks, in-process
 > concurrency, startup sweep) — deploy it on Render (above), not on Vercel
