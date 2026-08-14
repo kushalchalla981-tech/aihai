@@ -1,0 +1,198 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #eef6ff;
+  --surface: rgba(255, 255, 255, 0.74);
+  --fg: #102033;
+  --fg-2: #34465f;
+  --muted: #60708a;
+  --accent: #4f8cff;
+  --accent-light: #6ba3ff;
+  --accent-on: #ffffff;
+  --success: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(255, 255, 255, 0.64);
+  --border-soft: rgba(255, 255, 255, 0.38);
+  --accent-soft: rgba(79, 140, 255, 0.14);
+  --fg-soft: rgba(16, 32, 51, 0.06);
+  --font-display: Inter, system-ui, sans-serif;
+  --font-body: Inter, system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+  --sidebar-w: 240px;
+  --sidebar-w-collapsed: 64px;
+  --topbar-h: 60px;
+  --radius: 10px;
+  --radius-xl: 20px;
+  --radius-pill: 9999px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  height: 100vh;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+h1, h2, h3, h4 {
+  text-wrap: balance;
+}
+
+input, textarea, select {
+  font: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, var(--accent), var(--accent-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-success {
+    background: linear-gradient(135deg, var(--success), #4ade80);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-danger {
+    background: linear-gradient(135deg, var(--danger), #f87171);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-warn {
+    background: linear-gradient(135deg, var(--warn), #fbbf24);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-anim {
+    background: linear-gradient(135deg, var(--accent), var(--accent-light), var(--success), var(--accent));
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradTextShift 6s ease-in-out infinite;
+  }
+
+  .glass {
+    background: var(--surface);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+  }
+
+  .glass-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .glass-shine::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.15) 45%,
+      rgba(255, 255, 255, 0.20) 50%,
+      rgba(255, 255, 255, 0.15) 55%,
+      transparent 70%
+    );
+    background-size: 300% 100%;
+    animation: shine-sweep 8s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .border-glow-hover {
+    position: relative;
+    transition: box-shadow 0.3s ease;
+  }
+
+  .border-glow-hover:hover {
+    box-shadow:
+      0 0 20px rgba(79, 140, 255, 0.15),
+      0 0 60px rgba(79, 140, 255, 0.08);
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg,
+      var(--border) 25%,
+      rgba(255, 255, 255, 0.8) 50%,
+      var(--border) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: var(--radius);
+    color: transparent !important;
+    user-select: none;
+    pointer-events: none;
+  }
+}
+
+@keyframes gradTextShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
