@@ -118,8 +118,8 @@ class AnomalyDetectionRequest(BaseModel):
     service: Optional[str] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
-    window_minutes: int = 1
-    contamination: float = 0.1
+    window_minutes: int = Field(1, ge=1, le=1440)
+    contamination: float = Field(0.1, ge=0.01, le=0.5)
 
 
 class VectorSearchQuery(BaseModel):

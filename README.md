@@ -1,32 +1,56 @@
 # 🚨 AI Incident Copilot
 
 > **Intelligent incident management for small software teams**  
-> Automate log analysis, root cause detection, and postmortem generation using AI
+> Log analysis, anomaly detection, semantic search, and automated security scans
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Next.js 14](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 
 ---
 
-## 🎯 Problem Statement
+## 🎯 What This Project Does
 
-Small engineering teams struggle with production incidents:
-- ❌ Enterprise observability tools cost $500-1000/month
-- ❌ Manual postmortems take 60-90 minutes per incident
-- ❌ No automated root cause analysis
-- ❌ Alert fatigue without intelligent prioritization
-- ❌ 80% of outages caused by deployments, but no correlation
+AI Incident Copilot is an incident-management platform for small engineering
+teams:
 
-## 💡 Solution
+- ✅ **Log ingestion & parsing** — upload log files; Drain3 extracts templates
+- ✅ **Anomaly detection** — Isolation Forest (PyOD) over time windows finds
+  error spikes and unusual patterns
+- ✅ **Semantic log search** — OpenAI embeddings + cosine similarity
+- ✅ **Incident tracking** — create, filter, update, and resolve incidents
+- ✅ **Security Scan** — submit a GitHub/GitLab/Bitbucket repo URL and get a
+  scored (0–100 + letter grade) vulnerability report from a rules engine plus
+  an optional LLM deep-review
 
-AI-powered incident copilot that:
-- ✅ Analyzes logs automatically using Drain3 parsing
-- ✅ Detects anomalies with ML (PyOD, HDBSCAN)
-- ✅ Generates root cause hypotheses using LLMs
-- ✅ Creates postmortem drafts in 10 minutes
-- ✅ Correlates incidents with deployments
-- ✅ Costs $20/month (90% cheaper than alternatives)
+---
+
+## 🧱 Architecture
+
+```
+Next.js frontend (:3000)  →  FastAPI backend (:8000)  →  PostgreSQL 16
+   /dashboard /incidents        /api/v1/* routes              (asyncpg)
+   /logs /scans /analytics      background scan jobs
+```
+
+- The frontend proxies `/api/*` to the backend via `next.config.mjs` rewrites
+  (dev default: `http://localhost:8000`; point it at the deployed backend in
+  production).
+- The backend persists to PostgreSQL using **asyncpg** (schema auto-created at
+  connect time — see `backend/app/database.py` and `DATABASE_SCHEMA.md`).
+- Long-running security scans run as FastAPI background tasks with an
+  in-process semaphore.
+
+## 🛠️ Technology Stack
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **Frontend** | Next.js 14 (App Router), TypeScript, Tailwind CSS, React Query, recharts, lucide-react | UI |
+| **Backend** | FastAPI, Python 3.11+ | REST API |
+| **Database** | PostgreSQL 16 via asyncpg | Persistence (TEXT-id runtime schema) |
+| **Log Parsing** | Drain3 | Log template extraction |
+| **Anomaly Detection** | PyOD (Isolation Forest) | Unusual-window detection |
+| **Embeddings / Search** | OpenAI `text-embedding-3-small` | Semantic log search |
+| **LLM** | OpenAI (Structured Outputs, e.g. `gpt-4o-mini`) | Scan deep-review (optional) |
 
 ---
 
@@ -35,35 +59,42 @@ AI-powered incident copilot that:
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- A PostgreSQL database (Supabase free tier, or local Postgres via Docker Compose)
-- OpenAI API key (optional — the scanner degrades to rules-only mode when unavailable)
+- Git (for the Security Scan feature)
+- PostgreSQL 16 (local via Docker Compose, or a managed instance)
+- OpenAI API key (optional — the scanner runs in rules-only mode without it)
 
-### Backend (FastAPI)
+### 1. Backend (FastAPI)
 
-```bash
+```powershell
 cd backend
 
-# Create and activate a virtual environment
+# Create and activate a virtual environment (already present as backend/venv)
 python -m venv venv
-# Windows: .\venv\Scripts\Activate.ps1
-# macOS/Linux: source venv/bin/activate
+.\venv\Scripts\Activate.ps1        # Windows
+# source venv/bin/activate         # macOS/Linux
 
-# Install dependencies (from backend/requirements.txt)
+# Install dependencies
 pip install -r requirements.txt
 
-# Copy and edit environment variables
-cp .env.example .env
+# Copy and edit environment variables (example file lives in backend/)
+Copy-Item .env.example .env        # Windows PowerShell
+# cp .env.example .env             # macOS/Linux
 
 # Start the API
 uvicorn app.main:app --reload
 ```
 
 - Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- Interactive docs: http://localhost:8000/docs
+- Health check: http://localhost:8000/health
 
-### Frontend (Next.js)
+> The backend does **not** need a database to boot in development — startup
+> logs a warning and continues, and `/health` reports `degraded` until the
+> database is reachable. In production, startup fails fast without a database.
 
-```bash
+### 2. Frontend (Next.js)
+
+```powershell
 cd frontend
 npm install
 npm run dev
@@ -71,28 +102,91 @@ npm run dev
 
 - Frontend: http://localhost:3000
 
-The frontend dev server proxies `/api/*` requests to `http://localhost:8000`
-(see `next.config.mjs`).
+### 3. Local Database
 
-### Local Database (optional)
-
-If you don't have a Supabase project, start a local Postgres:
-
-```bash
-docker-compose up -d db
-# DATABASE_URL=postgres://incidents:incidents@localhost:5432/incidents
+```powershell
+docker-compose up -d
+# PostgreSQL on localhost:5432 (user/password/db: incidents/incidents/incidents)
 ```
 
-### Test with Sample Logs
+The backend reads `DATABASE_URL` from `backend/.env` (default expected value:
+`postgresql://incidents:incidents@localhost:5432/incidents`).
 
-```bash
+### 4. Try It
+
+```powershell
 # Upload sample logs
-curl -X POST http://localhost:8000/api/logs/upload \
-  -F "file=@sample-logs.txt"
+curl -X POST http://localhost:8000/api/v1/logs/upload -F "file=@sample-logs.txt"
 
-# View detected anomalies
-curl http://localhost:8000/api/anomalies
+# Detect anomalies
+curl "http://localhost:8000/api/v1/anomalies/detect?window_minutes=5"
+
+# List incidents
+curl http://localhost:8000/api/v1/incidents
 ```
+
+---
+
+## 🔒 Security Scan Feature
+
+Submit a public repository URL; the backend clones it into a temp dir, runs a
+20-rule heuristic engine, optionally performs an LLM deep-review, and produces
+a scored report. Critical/high findings automatically create incidents.
+
+### Allowed hosts
+`github.com`, `gitlab.com`, `bitbucket.org` (exact match — configurable via
+`SCAN_ALLOWED_HOSTS`). Only `https` URLs without embedded credentials are
+accepted.
+
+### Using the API
+
+```powershell
+# 1. Submit a scan (returns a queued run)
+curl -X POST http://localhost:8000/api/v1/scans `
+  -H "Content-Type: application/json" `
+  -d '{"repo_url": "https://github.com/octocat/Hello-World"}'
+
+# 2. Poll until status is "completed" or "failed"
+curl http://localhost:8000/api/v1/scans/<scan-id>
+
+# 3. Promote a finding to an incident (manual path; critical/high are auto)
+curl -X POST http://localhost:8000/api/v1/scans/<scan-id>/findings/<finding-id>/incident
+```
+
+### What a completed scan contains
+- `score` — 0–100 (100 = no findings; 4+ critical findings floor at 0)
+- `grade` — A/B/C/D/F (A ≥90, B ≥75, C ≥50, D ≥25, F <25)
+- `summary` — one-line finding count
+- `metadata.sub_scores` — `secrets_score`, `code_score`, `config_score`
+- `findings` — severity, category, `file:line`, masked evidence, description,
+  remediation
+
+### LLM behavior
+- When `OPENAI_API_KEY` is set, up to `MAX_LLM_FILES` files are sent for
+  deep-review using OpenAI Structured Outputs.
+- When the key is missing/empty, or the LLM refuses/errors/exceeds budgets, the
+  scan **degrades to rules-only mode** (`metadata.llm_status` = `rules_only`) —
+  it never hard-fails.
+
+### UI
+The frontend `/scans` page (sidebar → "Security Scans") has a submit form, a
+polled history list, and a detail view with findings, sub-scores, and a
+promote-to-incident button.
+
+---
+
+## 📄 API Overview
+
+| Group | Routes |
+|-------|--------|
+| Health | `GET /health` |
+| Logs | `GET /api/v1/logs`, `POST /api/v1/logs/upload`, `POST /api/v1/logs/batch`, `GET /api/v1/logs/{id}` |
+| Incidents | `POST /api/v1/incidents`, `GET /api/v1/incidents`, `GET/PATCH /api/v1/incidents/{id}` |
+| Anomalies | `GET|POST /api/v1/anomalies/detect` |
+| Search | `POST /api/v1/search`, `POST /api/v1/search/backfill` |
+| Scans | `POST /api/v1/scans`, `GET /api/v1/scans`, `GET /api/v1/scans/{id}`, `POST /api/v1/scans/{id}/findings/{fid}/incident` |
+
+Full interactive reference: http://localhost:8000/docs
 
 ---
 
@@ -100,208 +194,130 @@ curl http://localhost:8000/api/anomalies
 
 ### Topology
 
-Frontend and backend are deployed as **separate services**. The backend serves
-APIs only and does not serve static frontend files.
+Frontend and backend deploy as **separate services**.
 
 ```
-Next.js (Vercel or `next start`)  →  FastAPI (Render)  →  PostgreSQL (managed)
-       :3000                              :8000
+Next.js (Vercel or any Node host)  →  FastAPI (Render)  →  PostgreSQL (managed)
+        :3000                              :8000
 ```
-
-The frontend calls the backend via `/api/*` (currently rewritten to
-`http://localhost:8000` in `next.config.mjs` for local development; point the
-rewrite destination at your deployed backend URL in production).
 
 ### Backend — Render
 
-1. Push the repository to GitHub.
-2. Create a new Web Service from the repository — Render reads `render.yaml`,
-   which sets `rootDir: backend` and automatically:
-   - Installs dependencies from `backend/requirements.txt`
-   - Starts with `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - Provisions the managed PostgreSQL database and sets `DATABASE_URL`
-3. Set `OPENAI_API_KEY` in the Render dashboard (optional — without it the
-   scanner runs in rules-only mode).
+`render.yaml` at the repo root defines a web service (`rootDir: backend`) plus
+a managed PostgreSQL database:
+
+1. Push the repository to GitHub and create a Render Blueprint from it.
+2. Render provisions the database, sets `DATABASE_URL`, installs
+   `backend/requirements.txt`, and starts
+   `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+3. Set `ENVIRONMENT=production` (defaults to production in render.yaml).
+4. Optionally set `OPENAI_API_KEY` for LLM deep-review.
+
+> Note: production workers must not have short gunicorn-style timeouts — a scan
+> can legitimately run longer than 30s. The render.yaml start command uses
+> uvicorn directly (no timeout-kill).
 
 ### Frontend — Vercel (or any Node host)
 
-1. Import the `frontend/` directory into Vercel (framework: Next.js).
+1. Import the `frontend/` directory (framework: Next.js).
 2. Point the `/api` rewrite destination in `next.config.mjs` at the deployed
    backend URL.
-3. Deploy. Alternatively, build locally with `npm run build` and serve with
-   `npm run start`.
+3. Deploy.
 
-### Required Environment Variables
+### Required Environment Variables (backend/.env)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string (set automatically by Render's managed database) |
-| `ENVIRONMENT` | No | `development` / `staging` / `production` (defaults to `development`) |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `ENVIRONMENT` | No | `development` / `staging` / `production` (default `development`) |
 | `LOG_LEVEL` | No | `INFO` / `DEBUG` / `ERROR` |
-| `OPENAI_API_KEY` | No | Used for LLM deep-review; the scanner degrades to rules-only mode when unavailable |
+| `OPENAI_API_KEY` | No | LLM deep-review + embeddings; scanner degrades to rules-only without it |
+| `CORS_ORIGINS` | No | Comma-separated origins; default `*` (credentials disabled while `*`) |
 
-Scan feature variables (`LLM_MODEL`, `SCAN_TMP_DIR`, `MAX_REPO_SIZE_MB`,
-`MAX_SCAN_FILES`, `MAX_LLM_FILES`, `MAX_LLM_FILE_CHARS`, `MAX_LLM_INPUT_CHARS`,
-`SCAN_ALLOWED_HOSTS`, `SCAN_MAX_CONCURRENT`) are optional with sensible
-defaults — see `backend/app/config.py`.
+Scan feature knobs (all optional with defaults — see `backend/app/config.py`):
+`LLM_MODEL`, `SCAN_TMP_DIR`, `MAX_REPO_SIZE_MB`, `MAX_SCAN_FILES`,
+`MAX_LLM_FILES`, `MAX_LLM_FILE_CHARS`, `MAX_LLM_INPUT_CHARS`,
+`SCAN_ALLOWED_HOSTS`, `SCAN_MAX_CONCURRENT`.
+
+---
+
+## 🔒 Security
+
+### Authentication Status (known limitation)
+
+The MVP has **no authentication**. This is documented, not accidental — the
+application assumes a **trusted single-team environment** protected by the
+surrounding infrastructure:
+
+- The API must **not** be exposed directly to the public internet.
+- Production deployments should sit behind a **VPN, SSO, or an
+  OAuth2/OIDC reverse proxy**.
+- Authentication/authorization and rate limiting are future roadmap items.
+
+### Hardening Already In Place
+
+- **Security headers** on every response: `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`.
+- **CORS:** wildcard origins never allow credentials; set `CORS_ORIGINS` to
+  explicit origins to enable credentialed requests (a production warning is
+  logged when `*` is used with `ENVIRONMENT=production`).
+- **Input bounds:** anomaly parameters validated (`window_minutes` 1–1440,
+  `contamination` 0.01–0.5) → HTTP 422 out of range.
+- **Startup resilience:** dev continues without a database (health reports
+  disconnected); production fails fast with a clear error.
+- **Scanner hardening:** https-only + host allowlist, credential-smuggling and
+  path-traversal rejection, list-arg git clone with `--` separator,
+  protocol.ext/file disabled, size/file-count caps, evidence truncation +
+  masking, temp-dir cleanup in `finally` with retry.
+- **Orphan recovery:** on startup, scans stuck in `queued`/`running` are marked
+  `failed` with `server restarted mid-scan`.
+
+---
+
+## 🧪 Testing
+
+```powershell
+# Backend (159 tests) — run from backend/ with the venv active
+cd backend
+.\venv\Scripts\Activate.ps1
+python -m pytest -q
+
+# Frontend — typecheck, lint, build (no JS test framework configured yet)
+cd frontend
+npx tsc --noEmit
+npm run lint
+npm run build
+```
 
 ---
 
 ## 📚 Documentation
 
-- **[Complete Research Report](ai-incident-copilot-research.md)** - Detailed technical documentation
-- **[Quick Start Guide](QUICK_START_GUIDE.md)** - Fast reference for developers
-- **[API Documentation](http://localhost:8000/docs)** - Interactive API docs (when running)
+- **[Quick Start Guide](QUICK_START_GUIDE.md)** — fast setup reference
+- **[Database Schema](DATABASE_SCHEMA.md)** — schema documentation
+- **[Architecture Notes](ARCHITECT.md)** — reference design for the UI
+  (note: the implemented UI is light-themed; ARCHITECT.md documents the
+  original dark-theme reference design)
+- **[API Docs](http://localhost:8000/docs)** — interactive (when running)
 
 ---
 
-## 🏗️ Architecture
+## 🚧 Roadmap (Post-MVP)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Frontend (Next.js)                       │
-│  Dashboard • Log Viewer • Timeline • Postmortem Editor       │
-└─────────────────────────────────────────────────────────────┘
-                              ↓ ↑
-┌─────────────────────────────────────────────────────────────┐
-│                    API Layer (FastAPI)                       │
-│  REST Endpoints • WebSocket • Authentication                 │
-└─────────────────────────────────────────────────────────────┘
-                              ↓ ↑
-┌─────────────────────────────────────────────────────────────┐
-│                   Processing Pipeline                        │
-│  Drain3 → PyOD → HDBSCAN → Embeddings → LLM Analysis       │
-└─────────────────────────────────────────────────────────────┘
-                              ↓ ↑
-┌─────────────────────────────────────────────────────────────┐
-│              Supabase (PostgreSQL + pgvector)                │
-│  Logs • Incidents • Embeddings • Change Events               │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🛠️ Tech Stack
-
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Frontend** | Next.js 14, TypeScript, Tailwind | User interface |
-| **Backend** | FastAPI, Python 3.11 | REST API |
-| **Database** | Supabase (PostgreSQL + pgvector) | Data storage + vector search |
-| **Log Parsing** | Drain3 | Template extraction |
-| **Anomaly Detection** | PyOD (Isolation Forest, LOF) | Detect unusual patterns |
-| **Clustering** | HDBSCAN | Group similar logs |
-| **Embeddings** | sentence-transformers | Semantic search |
-| **LLM** | OpenAI GPT-4 / Ollama | Root cause analysis |
-| **RAG** | LangChain + LlamaIndex | Context retrieval |
-
----
-
-## ✨ Features
-
-### MVP (15 Days)
-- [x] Log upload (file or API)
-- [x] Automatic log parsing (Drain3)
-- [x] Anomaly detection (Isolation Forest)
-- [x] Anomaly window identification
-- [x] LLM-powered incident summary
-- [x] Timeline generation
-- [x] Root cause hypothesis ranking
-- [x] Postmortem draft generation
-- [x] Basic incident dashboard
-
-### Roadmap (Post-MVP)
-- [ ] Real-time log streaming (Kafka)
-- [ ] Slack/Discord integration
-- [ ] Deployment webhook integration
-- [ ] Advanced clustering visualization
-- [ ] Historical incident comparison
-- [ ] Custom alert rules
-- [ ] Multi-user collaboration
-- [ ] Mobile app
-
----
-
-## 📊 Performance Metrics
-
-| Metric | Target | Status |
-|--------|--------|--------|
-| **MTTD** (Mean Time to Detect) | <5 min | ✅ Achieved |
-| **MTTU** (Mean Time to Understand) | <10 min | ✅ Achieved |
-| **MTTR** (Mean Time to Resolve) | 50% reduction | 🎯 In Progress |
-| **Postmortem Creation** | <15 min | ✅ Achieved |
-| **Root Cause Accuracy** | >70% (top-3) | ✅ Achieved |
-
----
-
-## 💰 Cost Comparison
-
-| Solution | Monthly Cost | Annual Cost |
-|----------|--------------|-------------|
-| **AI Incident Copilot (MVP)** | $20 | $240 |
-| **AI Incident Copilot (Production)** | $115 | $1,380 |
-| Datadog | $500-1,000 | $6,000-12,000 |
-| New Relic | $300-600 | $3,600-7,200 |
-| PagerDuty + Incident.io | $400-800 | $4,800-9,600 |
-
-**💡 Savings: 90-95% vs. enterprise tools**
-
----
-
-## 🧪 Example Usage
-
-### 1. Upload Logs
-```python
-import requests
-
-with open('app.log', 'rb') as f:
-    response = requests.post(
-        'http://localhost:8000/api/logs/upload',
-        files={'file': f}
-    )
-print(response.json())
-# Output: {"logs_processed": 1000, "anomalies_detected": 5}
-```
-
-### 2. Create Incident
-```python
-incident = {
-    "title": "Database Connection Timeout",
-    "start_time": "2026-05-18T10:17:00Z",
-    "severity": "critical",
-    "affected_services": ["api-service", "database"]
-}
-
-response = requests.post(
-    'http://localhost:8000/api/incidents',
-    json=incident
-)
-print(response.json()['root_causes'])
-# Output: [{"hypothesis": "Connection pool exhausted", "confidence": 0.85, ...}]
-```
-
-### 3. Generate Postmortem
-```python
-response = requests.post(
-    'http://localhost:8000/api/postmortems/generate',
-    json={"incident_id": "abc-123"}
-)
-print(response.json()['content'])
-# Output: Markdown postmortem with timeline, root cause, action items
-```
+- Authentication & authorization, rate limiting
+- Real-time log streaming
+- Slack/Discord integration
+- Deployment webhook correlation
+- Custom alert rules
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! This project was built during a 15-day technical workshop.
-
-### Development Setup
-```bash
+```powershell
 # Backend
 cd backend
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 
@@ -311,22 +327,7 @@ npm install
 npm run dev
 ```
 
-### Running Tests
-```bash
-# Backend tests
-cd backend
-pytest
-
-# Frontend tests
-cd frontend
-npm test
-```
-
----
-
-## 📝 License
-
-MIT License - see [LICENSE](LICENSE) file for details
+See **AGENTS.md** for coding conventions and development commands.
 
 ---
 
@@ -335,37 +336,6 @@ MIT License - see [LICENSE](LICENSE) file for details
 Built with:
 - [Drain3](https://github.com/logpai/Drain3) - Log parsing
 - [PyOD](https://github.com/yzhao062/pyod) - Anomaly detection
-- [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan) - Clustering
-- [LangChain](https://github.com/langchain-ai/langchain) - LLM orchestration
-- [Supabase](https://supabase.com/) - Backend infrastructure
+- [FastAPI](https://fastapi.tiangolo.com/) - Backend framework
 - [Next.js](https://nextjs.org/) - Frontend framework
-
----
-
-## 📧 Contact
-
-For questions or feedback:
-- Open an issue on GitHub
-- Email: your-team@example.com
-- Workshop: 15-Day Technical Workshop 2026
-
----
-
-## 🎓 Workshop Context
-
-This project was developed as part of a 15-day technical workshop focusing on:
-- Real-world problem solving
-- AI/ML implementation (LLMs, computer vision, NLP)
-- Full-stack development
-- DevOps and observability
-- Startup-ready MVP development
-
-**Team Size:** 3 developers  
-**Duration:** 15 days  
-**Focus:** High-impact, technically impressive, portfolio-worthy
-
----
-
-**⭐ If you find this project useful, please star the repository!**
-
-**🚀 Ready to revolutionize incident management? Let's get started!**
+- [PostgreSQL](https://www.postgresql.org/) - Database

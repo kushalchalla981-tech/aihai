@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,17 +7,38 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import get_db
 from app.api.v1.routes import health, logs, incidents, anomalies, search, scans
+from app.middleware import SecurityHeadersMiddleware
 from app.services.parser import get_miner
 from app.services.scanner import sweep_orphaned_scans
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db = await get_db()
-    await sweep_orphaned_scans(db)
-    get_miner()
+    db = None
+    try:
+        db = await get_db()
+        await sweep_orphaned_scans()
+    except Exception as exc:
+        if settings.ENVIRONMENT == "production":
+            logger.error(
+                "Startup failed: the database could not be reached (%s). "
+                "Refusing to start in production without a database.",
+                exc,
+            )
+            raise
+        logger.warning(
+            "Database unavailable during startup (%s); continuing in %s mode. "
+            "Health checks will report the database as disconnected.",
+            exc,
+            settings.ENVIRONMENT,
+        )
+    else:
+        get_miner()
     yield
-    await db.close()
+    if db is not None:
+        await db.close()
 
 
 app = FastAPI(
@@ -26,13 +48,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+if settings.ENVIRONMENT == "production" and "*" in settings.CORS_ORIGINS:
+    logger.warning(
+        "CORS is configured with wildcard origins in production; set "
+        "CORS_ORIGINS to explicit origins for credentialed requests."
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=settings.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(health.router, tags=["health"])
 app.include_router(logs.router, prefix=settings.API_V1_PREFIX, tags=["logs"])

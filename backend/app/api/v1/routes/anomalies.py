@@ -40,8 +40,8 @@ async def detect_anomalies_get(
     service: str = Query(None),
     start_time: str = Query(None),
     end_time: str = Query(None),
-    window_minutes: int = Query(1),
-    contamination: float = Query(0.1),
+    window_minutes: int = Query(1, ge=1, le=1440),
+    contamination: float = Query(0.1, ge=0.01, le=0.5),
 ):
     db = await get_db()
     start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00")) if start_time else None

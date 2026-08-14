@@ -25,5 +25,10 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
+    @property
+    def cors_allow_credentials(self) -> bool:
+        """Credentials are only sent when CORS origins are explicitly configured."""
+        return "*" not in self.CORS_ORIGINS
+
 
 settings = Settings()

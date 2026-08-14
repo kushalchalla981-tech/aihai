@@ -1,5 +1,16 @@
 # UI Architecture & Design System — AI Incident Copilot
 
+> **Status note (reference design):** This document is the **reference design**
+> captured during planning. It describes a **dark, terminal-meets-glassmorphism
+> theme** (deep charcoal `#0A0A0F`, cyan `#00FFC8` accent). The **implemented
+> UI currently differs**: it uses a **light theme** with its own design tokens
+> (defined in `frontend/src/app/globals.css`), while keeping the overall layout
+> concepts (sidebar, topbar, card-based dashboard, `/incidents`, `/logs`,
+> `/analytics`, `/settings`, plus a `/scans` page for the Security Scan
+> feature). Treat the visual language below as the original specification, not
+> a description of the current UI. The rest of the architectural guidance
+> remains valid.
+
 ## Design Philosophy
 
 **"Calm in the chaos."** Every pixel serves the operator during a Sev-1. The interface is a control room, not a marketing page — authoritative, minimal, and ruthlessly purposeful.

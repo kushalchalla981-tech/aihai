@@ -832,17 +832,15 @@ async def _finalize_scan(
     )
 
 
-async def run_scan(repo_url: str, name: Optional[str] = None) -> dict:
+async def run_scan(scan_id: str, repo_url: str) -> dict:
     db = await get_db()
     async with _scan_semaphore:
         try:
             url = validate_repo_url(repo_url)
         except ValueError as exc:
-            scan = await db.insert_scan_run(repo_url, name)
-            await db.update_scan_status(scan["id"], "failed", error=str(exc))
-            return await db.get_scan_run(scan["id"])
-        scan = await db.insert_scan_run(url, name)
-        scan_id = scan["id"]
+            await db.update_scan_status(scan_id, "failed", error=str(exc))
+            return await db.get_scan_run(scan_id)
+        scan = await db.get_scan_run(scan_id)
         try:
             await db.update_scan_status(scan_id, "running")
             repo_dir = await asyncio.to_thread(clone_repo, url, scan_id)

@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 from app.services.scanner import _finding_id
 
@@ -7,6 +8,116 @@ REPO_URL = "https://github.com/acme/app"
 
 def _finding_id_for(rule_id, file, line):
     return _finding_id(REPO_URL, rule_id, file, line)
+
+
+def _patch_scan_steps(monkeypatch, fake_db, tmp_path, findings=None, texts=None):
+    """Point the real run_scan at a fake DB with stubbed clone/scan steps."""
+    async def fake_get_db():
+        return fake_db
+
+    monkeypatch.setattr("app.services.scanner.get_db", fake_get_db)
+    monkeypatch.setattr(
+        "app.services.scanner.clone_repo",
+        lambda url, scan_id: Path(tmp_path),
+    )
+    monkeypatch.setattr(
+        "app.services.scanner.scan_repo",
+        lambda repo_path: (findings or [], [], texts or {}, 0),
+    )
+
+
+async def test_run_scan_transitions_submitted_run_in_place(monkeypatch, fake_db, tmp_path):
+    """The background task must complete the exact run the route created."""
+    run = await fake_db.insert_scan_run(REPO_URL, "acme")
+    _patch_scan_steps(monkeypatch, fake_db, tmp_path)
+
+    from app.services.scanner import run_scan
+
+    result = await run_scan(run["id"], REPO_URL)
+
+    runs = await fake_db.get_scan_runs()
+    assert len(runs) == 1
+    assert runs[0]["id"] == run["id"]
+    assert runs[0]["status"] == "completed"
+    assert runs[0]["score"] == 100
+    assert runs[0]["grade"] == "A"
+    assert result["id"] == run["id"]
+    assert result["status"] == "completed"
+
+
+async def test_run_scan_marks_invalid_url_run_failed_in_place(monkeypatch, fake_db, tmp_path):
+    run = await fake_db.insert_scan_run(REPO_URL)
+    _patch_scan_steps(monkeypatch, fake_db, tmp_path)
+
+    from app.services.scanner import run_scan
+
+    await run_scan(run["id"], "file:///etc/passwd")
+
+    runs = await fake_db.get_scan_runs()
+    assert len(runs) == 1
+    assert runs[0]["id"] == run["id"]
+    assert runs[0]["status"] == "failed"
+    assert "https" in runs[0]["error"]
+
+
+async def test_run_scan_failed_clone_marks_run_failed(monkeypatch, fake_db, tmp_path):
+    from app.services.scanner import ScanAbortError
+
+    run = await fake_db.insert_scan_run(REPO_URL)
+    async def fake_get_db():
+        return fake_db
+
+    monkeypatch.setattr("app.services.scanner.get_db", fake_get_db)
+    monkeypatch.setattr(
+        "app.services.scanner.clone_repo",
+        lambda url, scan_id: (_ for _ in ()).throw(ScanAbortError("git clone failed (exit 128)")),
+    )
+
+    from app.services.scanner import run_scan
+
+    await run_scan(run["id"], REPO_URL)
+
+    runs = await fake_db.get_scan_runs()
+    assert len(runs) == 1
+    assert runs[0]["status"] == "failed"
+    assert "git clone failed" in runs[0]["error"]
+
+
+async def test_run_scan_persists_findings_and_auto_promotes(monkeypatch, fake_db, tmp_path):
+    run = await fake_db.insert_scan_run(REPO_URL, "acme")
+    findings = [
+        {
+            "rule_id": "SECRET_AWS_KEY",
+            "severity": "critical",
+            "category": "secrets",
+            "file": "creds.py",
+            "line": 2,
+            "evidence": "AKIA****",
+            "description": "AWS access key exposed in source",
+            "remediation": "Rotate the key immediately and remove it from the repo",
+        }
+    ]
+    _patch_scan_steps(monkeypatch, fake_db, tmp_path, findings=findings, texts={"creds.py": "x"})
+
+    from app.services.scanner import run_scan
+
+    await run_scan(run["id"], REPO_URL)
+
+    saved = await fake_db.get_scan_findings(run["id"])
+    assert len(saved) == 1
+    assert saved[0]["rule_id"] == "SECRET_AWS_KEY"
+    assert saved[0]["severity"] == "critical"
+    assert saved[0]["scan_id"] == run["id"]
+    assert saved[0]["promoted_to_incident"] is True
+
+    incidents = list(fake_db.tables["incidents"].values())
+    assert len(incidents) == 1
+    assert incidents[0]["metadata"]["finding_id"] == _finding_id_for("SECRET_AWS_KEY", "creds.py", 2)
+    assert incidents[0]["metadata"]["scan_id"] == run["id"]
+
+    runs = await fake_db.get_scan_runs()
+    assert runs[0]["score"] == 75
+    assert runs[0]["grade"] == "B"
 
 
 def test_create_scan_returns_201_and_queued(client, fake_run_scan):

@@ -18,11 +18,24 @@ def _is_valid_uuid(value) -> bool:
         return False
 
 
+class _FakePool:
+    """Minimal pool stub so _finalize_scan's finding-dedupe query works."""
+
+    def __init__(self, db):
+        self._db = db
+
+    async def fetch(self, query: str, *args):
+        if "scan_findings" in query:
+            return []
+        return []
+
+
 class FakeDatabase:
     """In-memory replacement for app.database.Database used by the scan API."""
 
     def __init__(self):
         self.tables = {"scan_runs": {}, "scan_findings": {}, "incidents": {}}
+        self.pool = _FakePool(self)
 
     def _table(self, table: str) -> dict:
         if table not in self.tables:
