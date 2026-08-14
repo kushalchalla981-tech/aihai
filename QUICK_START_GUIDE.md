@@ -142,8 +142,9 @@ npm run build
 
 - **Backend:** Render Blueprint — `render.yaml` at the repo root defines the
   backend service (`rootDir: backend`) and a managed PostgreSQL database.
-- **Frontend:** Vercel (or any Node host) — import `frontend/` and point the
-  `/api` rewrite in `frontend/next.config.mjs` at the deployed backend URL.
+- **Frontend:** Vercel (or any Node host) — import the repo root (the
+  root-level `vercel.json` sets `rootDirectory: "frontend"`) and set the
+  `BACKEND_URL` env var in Vercel to the deployed backend URL.
 
 See **README.md → Production Deployment** for details.
 
