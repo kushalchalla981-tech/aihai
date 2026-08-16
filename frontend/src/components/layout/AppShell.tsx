@@ -22,23 +22,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isLanding) {
     return (
-      <>
-        <AmbientBg />
-        <main className="content-area">{children}</main>
-      </>
+      <main className="min-h-screen bg-page-bg text-text-primary flex flex-col">
+        {children}
+      </main>
     );
   }
 
   return (
-    <>
+    <div className="flex h-screen bg-page-bg text-text-primary overflow-hidden">
       <AmbientBg />
-      <div className="app-shell">
-        <Sidebar />
-        <div className="main-area">
-          <Topbar />
-          <main className="content-area">{children}</main>
-        </div>
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden bg-page-bg border-l border-border-soft">
+        <Topbar />
+        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+          <div className="max-w-container mx-auto">
+            {children}
+          </div>
+        </main>
       </div>
-    </>
+    </div>
   );
 }

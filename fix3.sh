@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > frontend/src/app/security/scans/[id]/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -20,7 +21,7 @@ const statusVariant: Record<string, "success" | "warn" | "danger" | "neutral"> =
 
 const findingStatuses: FindingStatus[] = ["open", "resolved", "accepted", "false_positive"];
 
-function FindingRow({ finding }: { finding: ScanFinding }) {
+function FindingRow({ finding, scanId }: { finding: ScanFinding; scanId: string }) {
   const [expanded, setExpanded] = useState(false);
   const update = useUpdateFindingStatus();
 
@@ -137,7 +138,7 @@ export default function SecurityScanDetailPage({ params }: { params: { id: strin
                   </div>
                 </div>
                 {scan.summary && <p className="text-[13px] text-text-secondary leading-relaxed pt-2 border-t border-border-soft">{scan.summary}</p>}
-                {Boolean(scan.metadata?.sub_scores) && typeof scan.metadata.sub_scores === "object" && (
+                {scan.metadata?.sub_scores && typeof scan.metadata.sub_scores === "object" && (
                    <div className="grid grid-cols-3 gap-2 mt-4 text-center border-t border-border-soft pt-4">
                      {Object.entries(scan.metadata.sub_scores as Record<string, number>).map(([key, value]) => (
                         <div key={key} className="bg-surface-base border border-border-soft rounded p-2">
@@ -167,7 +168,7 @@ export default function SecurityScanDetailPage({ params }: { params: { id: strin
                 <div className="text-center py-16 text-text-tertiary text-[13px]">No findings discovered in this scan.</div>
               ) : (
                 <div className="flex flex-col">
-                  {scan.findings.map((f) => <FindingRow key={f.id} finding={f} />)}
+                  {scan.findings.map((f) => <FindingRow key={f.id} finding={f} scanId={scan.id} />)}
                 </div>
               )}
             </div>
@@ -177,3 +178,4 @@ export default function SecurityScanDetailPage({ params }: { params: { id: strin
     </div>
   );
 }
+INNER_EOF

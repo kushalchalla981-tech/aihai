@@ -1,8 +1,8 @@
-export default function LiveBadge({ label = "Live" }: { label?: string }) {
+export default function LiveBadge() {
   return (
-    <span className="inline-flex items-center gap-[6px] px-3 py-[3px] rounded-[9999px] bg-green-100 text-success text-[11px] font-medium">
-      <span className="w-[5px] h-[5px] rounded-full bg-success animate-live-pulse" />
-      {label}
-    </span>
+    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-status-success/20 bg-status-success/10 text-status-success text-[10px] uppercase font-bold tracking-widest">
+      <span className="w-1.5 h-1.5 rounded-full bg-status-success" />
+      Live
+    </div>
   );
 }

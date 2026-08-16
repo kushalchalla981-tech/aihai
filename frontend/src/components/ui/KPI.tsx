@@ -37,7 +37,7 @@ export default function KPI({
       ([entry]) => {
         if (entry.isIntersecting && !animated.current) {
           animated.current = true;
-          const dur = 1200;
+          const dur = 600; // Faster, more snappy animation
           const start = performance.now();
           const tick = (now: number) => {
             const p = Math.min((now - start) / dur, 1);
@@ -58,14 +58,14 @@ export default function KPI({
     <div
       ref={ref}
       className={clsx(
-        "bg-[var(--surface)] backdrop-blur-[16px] border border-[var(--border)] rounded-[20px] p-5 transition-shadow duration-[280ms] hover:shadow-[0_24px_80px_rgba(79,140,255,0.18)] hover:-translate-y-[2px]",
+        "bg-surface-base border border-border-soft rounded-lg p-4 transition-colors duration-150 hover:border-border-strong",
         className
       )}
     >
-      <div className="text-[12px] text-muted font-medium uppercase tracking-wide mb-[6px]">
+      <div className="text-[11px] text-text-secondary uppercase tracking-wider mb-2">
         {label}
       </div>
-      <div className="font-display text-[28px] font-bold tracking-tight leading-[1.1]">
+      <div className="font-mono text-[24px] font-semibold tracking-tight leading-none text-text-primary tabular-nums">
         {prefix}
         {decimals > 0 ? display.toFixed(decimals) : Math.round(display)}
         {suffix}
@@ -73,16 +73,16 @@ export default function KPI({
       {change && (
         <div
           className={clsx(
-            "text-[12px] mt-1 inline-flex items-center gap-[3px]",
-            change.up && "text-success",
-            change.down && "text-danger",
-            !change.up && !change.down && "text-muted"
+            "text-[11px] mt-2 font-medium",
+            change.up && "text-status-success",
+            change.down && "text-status-critical",
+            !change.up && !change.down && "text-text-secondary"
           )}
         >
-          {change.value}
+          {change.up ? "↑ " : change.down ? "↓ " : ""}{change.value}
         </div>
       )}
-      {children}
+      {children && <div className="mt-3">{children}</div>}
     </div>
   );
 }

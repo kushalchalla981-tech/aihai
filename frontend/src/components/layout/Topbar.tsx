@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Search, Bell, X } from "lucide-react";
+import { Search, Bell, X, User } from "lucide-react";
 import ProductSwitcher, { useProduct } from "./ProductSwitcher";
 
 export default function Topbar() {
@@ -35,45 +35,44 @@ export default function Topbar() {
   }, []);
 
   return (
-    <header className="h-[var(--topbar-h)] bg-[var(--surface)] backdrop-blur-[20px] border-b border-[var(--border-soft)] flex items-center gap-6 px-6 flex-shrink-0">
+    <header className="h-[var(--topbar-h)] bg-surface-base border-b border-border-soft flex items-center gap-6 px-6 flex-shrink-0 z-10 relative">
       <ProductSwitcher />
 
-      <div className="flex-1 max-w-[420px] relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+      <div className="flex-1 max-w-[420px] relative hidden md:block">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
         <input
           type="text"
           placeholder={searchPlaceholder}
-          className="w-full py-2 pl-9 pr-4 border border-[var(--border)] rounded-[9999px] bg-white/50 text-[13px] text-[var(--fg)] outline-none transition-[border-color,box-shadow] duration-[180ms] focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
+          className="w-full py-1.5 pl-9 pr-4 border border-border-soft rounded-md bg-surface-elevated text-[13px] text-text-primary outline-none transition-colors duration-150 focus:border-accent focus:ring-1 focus:ring-accent"
         />
       </div>
 
-      <div className="flex items-center gap-[10px] ml-auto">
-        <span className="font-mono text-[13px] text-muted">{clock}</span>
+      <div className="flex items-center gap-3 ml-auto">
+        <span className="font-mono text-[12px] text-text-secondary hidden sm:inline-block tabular-nums">{clock}</span>
 
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotifOpen((o) => !o)}
-            className="w-9 h-9 rounded-full grid place-items-center text-[var(--fg-2)] hover:bg-[var(--accent-soft)] hover:text-accent transition-colors duration-[180ms] relative"
+            className="w-8 h-8 rounded-md grid place-items-center text-text-secondary hover:bg-surface-elevated hover:text-text-primary transition-colors duration-150 relative"
             aria-label="Notifications"
           >
-            <Bell size={18} />
-            <span className="absolute top-[6px] right-[6px] w-2 h-2 rounded-full bg-danger border-2 border-[var(--surface)]" />
+            <Bell size={16} />
+            <span className="absolute top-[6px] right-[6px] w-1.5 h-1.5 rounded-full bg-status-critical border border-surface-base" />
           </button>
 
           {notifOpen && (
-            <div className="absolute top-full right-0 mt-2 w-[320px] bg-[var(--surface)] backdrop-blur-[24px] border border-[var(--border)] rounded-[20px] shadow-[0_24px_80px_rgba(79,140,255,0.18)] p-4 z-50">
+            <div className="absolute top-full right-0 mt-2 w-[320px] bg-surface-elevated border border-border-strong rounded-lg shadow-lg p-3 z-50">
+              <div className="text-[12px] font-semibold text-text-secondary uppercase tracking-wide mb-2 px-2">Notifications</div>
               {[
-                { icon: "alert", text: <><strong>CRIT-2210</strong> escalated — API gateway timeout</>, time: "2 min ago" },
-                { icon: "check", text: <><strong>INC-118</strong> auto-resolved after canary rollback</>, time: "14 min ago" },
-                { icon: "warning", text: <>Memory usage exceeds 85% on <strong>api-prod-3</strong></>, time: "32 min ago" },
+                { type: "critical", text: <><strong>CRIT-2210</strong> escalated — API gateway timeout</>, time: "2 min ago" },
+                { type: "success", text: <><strong>INC-118</strong> auto-resolved after canary rollback</>, time: "14 min ago" },
+                { type: "warning", text: <>Memory usage exceeds 85% on <strong>api-prod-3</strong></>, time: "32 min ago" },
               ].map((n, i) => (
-                <div key={i} className="flex gap-4 py-[10px] border-b border-[var(--border-soft)] last:border-b-0">
-                  <div className="w-7 h-7 rounded-full bg-[var(--accent-soft)] grid place-items-center flex-shrink-0">
-                    <div className="w-3.5 h-3.5 rounded-full bg-accent" />
-                  </div>
+                <div key={i} className="flex gap-3 py-2 px-2 hover:bg-surface-base rounded-md transition-colors cursor-pointer">
+                  <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${n.type === 'critical' ? 'bg-status-critical' : n.type === 'success' ? 'bg-status-success' : 'bg-status-high'}`} />
                   <div>
-                    <div className="text-[13px] text-[var(--fg-2)]">{n.text}</div>
-                    <div className="text-[11px] text-muted mt-[2px]">{n.time}</div>
+                    <div className="text-[13px] text-text-primary leading-tight">{n.text}</div>
+                    <div className="text-[11px] text-text-tertiary mt-1">{n.time}</div>
                   </div>
                 </div>
               ))}
@@ -83,7 +82,7 @@ export default function Topbar() {
 
         <button
           onClick={() => setProfileOpen((o) => !o)}
-          className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-accent to-accent-light text-surface-on grid place-items-center text-[13px] font-semibold cursor-pointer flex-shrink-0 hover:shadow-[0_0_0_3px_var(--accent-soft)] transition-shadow duration-[180ms]"
+          className="w-8 h-8 rounded-md bg-surface-elevated border border-border-strong text-text-primary grid place-items-center text-[12px] font-medium cursor-pointer flex-shrink-0 hover:border-accent transition-colors duration-150"
         >
           AK
         </button>
@@ -91,35 +90,34 @@ export default function Topbar() {
 
       {profileOpen && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[4px]" onClick={() => setProfileOpen(false)} />
-          <div className="fixed top-0 right-0 w-[360px] h-screen z-50 bg-[var(--surface)] backdrop-blur-[24px] border-l border-[var(--border)] p-6 flex flex-col animate-[fade-in_0.2s_ease]">
+          <div className="fixed inset-0 z-40 bg-page-bg/50" onClick={() => setProfileOpen(false)} />
+          <div className="fixed top-0 right-0 w-[300px] h-screen z-50 bg-surface-base border-l border-border-soft p-6 flex flex-col shadow-2xl animate-[fade-in_0.2s_ease]">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold">Profile</h3>
-              <button onClick={() => setProfileOpen(false)} className="w-8 h-8 rounded-full grid place-items-center text-muted hover:bg-[var(--accent-soft)] hover:text-accent transition-colors duration-[180ms]">
-                <X size={18} />
+              <h3 className="text-[16px] font-semibold">Profile</h3>
+              <button onClick={() => setProfileOpen(false)} className="w-8 h-8 rounded-md grid place-items-center text-text-secondary hover:bg-surface-elevated transition-colors duration-150">
+                <X size={16} />
               </button>
             </div>
-            <div className="text-center py-6 border-b border-[var(--border-soft)]">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-accent to-accent-light text-surface-on grid place-items-center text-[22px] font-semibold mx-auto mb-4">AK</div>
-              <div className="font-semibold text-[17px]">Alex Kovacs</div>
-              <div className="text-[13px] text-muted mt-1">alex@example.com</div>
+            <div className="text-center py-6 border-b border-border-soft">
+              <div className="w-14 h-14 rounded-full bg-surface-elevated border border-border-strong text-text-primary grid place-items-center text-[20px] font-medium mx-auto mb-3">AK</div>
+              <div className="font-semibold text-[15px]">Alex Kovacs</div>
+              <div className="text-[13px] text-text-secondary mt-1">alex@example.com</div>
             </div>
-            <nav className="flex-1 py-4 flex flex-col gap-[2px]">
+            <nav className="flex-1 py-4 flex flex-col gap-1">
               {[
-                { label: "My Account", icon: "user" },
-                { label: "Settings", href: product === "security" ? "/security/settings" : "/incidents/settings" },
-                { label: "Notifications", icon: "bell" },
-                { label: "Security", icon: "shield" },
-              ].map((item) => (
-                <a key={item.label} href={item.href || "#"} className="flex items-center gap-4 px-4 py-[10px] rounded-[10px] text-[14px] text-[var(--fg-2)] hover:bg-[var(--accent-soft)] hover:text-accent transition-colors duration-[180ms]">
-                  <div className="w-[18px] h-[18px] rounded bg-muted/20" />
+                { label: "My Account", icon: User },
+                { label: "Settings", href: product === "security" ? "/security/settings" : "/incidents/settings", icon: User },
+              ].map((item, i) => (
+                <a key={i} href={item.href || "#"} className="flex items-center gap-3 px-3 py-2 rounded-md text-[13px] text-text-secondary hover:bg-surface-elevated hover:text-text-primary transition-colors duration-150">
+                  <item.icon size={14} className="text-text-tertiary" />
                   {item.label}
                 </a>
               ))}
-              <a href="#" className="flex items-center gap-4 px-4 py-[10px] rounded-[10px] text-[14px] text-danger hover:bg-red-50 mt-auto">
-                <div className="w-[18px] h-[18px] rounded bg-danger/20" />
-                Sign Out
-              </a>
+              <div className="mt-auto pt-4 border-t border-border-soft">
+                <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-md text-[13px] text-status-critical hover:bg-status-critical/10 transition-colors">
+                  Sign Out
+                </a>
+              </div>
             </nav>
           </div>
         </>

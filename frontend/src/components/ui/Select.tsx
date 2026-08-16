@@ -12,7 +12,7 @@ export default function Select({ options, className, ...props }: Props) {
   return (
     <div className={clsx("relative", className)}>
       <select
-        className="w-full appearance-none py-[7px] pl-3 pr-7 border border-[var(--border)] rounded-[10px] bg-[var(--surface)] text-[var(--fg)] text-[13px] cursor-pointer outline-none transition-[border-color] duration-[180ms] focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
+        className="w-full appearance-none py-1.5 pl-3 pr-7 border border-border-soft rounded-md bg-surface-elevated text-text-primary text-[13px] cursor-pointer outline-none transition-colors duration-150 focus:border-border-strong hover:border-border-strong"
         {...props}
       >
         {options.map((o) => (
@@ -21,7 +21,7 @@ export default function Select({ options, className, ...props }: Props) {
           </option>
         ))}
       </select>
-      <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+      <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
     </div>
   );
 }

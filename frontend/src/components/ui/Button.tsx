@@ -4,17 +4,17 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-accent text-accent-on border-accent hover:bg-accent-hover",
-  secondary: "bg-transparent text-fg border-[var(--border)] hover:border-accent hover:text-accent",
-  ghost: "bg-transparent text-fg-2 border-transparent hover:text-accent hover:bg-[var(--accent-soft)]",
-  danger: "bg-transparent text-danger border-[var(--border)] hover:border-danger",
+  primary: "bg-text-primary text-page-bg border-transparent hover:bg-text-primary/90",
+  secondary: "bg-surface-elevated text-text-primary border-border-strong hover:border-text-secondary",
+  ghost: "bg-transparent text-text-secondary border-transparent hover:text-text-primary hover:bg-surface-elevated",
+  danger: "bg-transparent text-status-critical border-border-strong hover:border-status-critical",
 };
 
 type Size = "sm" | "md";
 
 const sizes: Record<Size, string> = {
-  sm: "px-3 py-[5px] text-[12px] rounded-[8px]",
-  md: "px-[18px] py-[9px] text-[14px] rounded-[10px]",
+  sm: "px-2.5 py-1 text-[12px] rounded-md",
+  md: "px-3.5 py-1.5 text-[13px] rounded-md",
 };
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -33,9 +33,10 @@ export default function Button({
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-[6px] font-medium tracking-tight border transition-colors duration-[180ms] active:translate-y-[1px] whitespace-nowrap",
+        "inline-flex items-center justify-center gap-1.5 font-medium border transition-colors duration-150 active:scale-[0.98] whitespace-nowrap outline-none focus:ring-2 focus:ring-border-strong",
         variants[variant],
         sizes[size],
+        props.disabled && "opacity-50 cursor-not-allowed active:scale-100",
         className
       )}
       {...props}
@@ -53,7 +54,7 @@ export function IconButton({
   return (
     <button
       className={clsx(
-        "w-[34px] h-[34px] grid place-items-center rounded-full border border-[var(--border)] text-[var(--fg-2)] bg-[var(--surface)] hover:border-accent hover:text-accent hover:bg-[var(--accent-soft)] transition-colors duration-[180ms]",
+        "w-7 h-7 grid place-items-center rounded-md border border-border-soft text-text-secondary bg-surface-base hover:border-border-strong hover:text-text-primary hover:bg-surface-elevated transition-colors duration-150",
         className
       )}
       {...props}

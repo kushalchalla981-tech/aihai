@@ -8,9 +8,9 @@ import clsx from "clsx";
 
 export type Product = "incidents" | "security";
 
-export const PRODUCTS: { id: Product; label: string; sub: string; href: string; icon: typeof ShieldCheck; accent: string }[] = [
-  { id: "incidents", label: "Incident Manager", sub: "Respond & resolve", href: "/incidents", icon: AlertTriangle, accent: "#4f8cff" },
-  { id: "security", label: "Security Checker", sub: "Vibe-coded scan & fix", href: "/security", icon: ShieldCheck, accent: "#8b5cf6" },
+export const PRODUCTS: { id: Product; label: string; sub: string; href: string; icon: typeof ShieldCheck; accentClass: string }[] = [
+  { id: "incidents", label: "Incident Manager", sub: "Respond & resolve", href: "/incidents", icon: AlertTriangle, accentClass: "text-[#3b82f6]" },
+  { id: "security", label: "Security Checker", sub: "Vibe-coded scan & fix", href: "/security", icon: ShieldCheck, accentClass: "text-[#8b5cf6]" },
 ];
 
 export function useProduct(): Product {
@@ -39,24 +39,18 @@ export default function ProductSwitcher() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-3 px-3 py-[7px] rounded-[12px] border border-[var(--border)] bg-white/50 hover:bg-white/80 transition-colors duration-[180ms]"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border-soft bg-surface-elevated hover:bg-surface-elevated/80 transition-colors duration-150"
         aria-label="Switch product"
       >
-        <span
-          className="w-7 h-7 rounded-[14px] grid place-items-center text-white text-[13px] font-semibold flex-shrink-0"
-          style={{ background: current.accent }}
-        >
-          <current.icon size={15} />
-        </span>
+        <current.icon size={14} className={current.accentClass} />
         <span className="text-left hidden md:block">
-          <span className="block text-[13px] font-semibold leading-tight text-[var(--fg)]">{current.label}</span>
-          <span className="block text-[11px] text-muted leading-tight">{current.sub}</span>
+          <span className="block text-[13px] font-medium leading-tight text-text-primary">{current.label}</span>
         </span>
-        <ChevronsUpDown size={14} className="text-muted flex-shrink-0" />
+        <ChevronsUpDown size={14} className="text-text-tertiary ml-1" />
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-2 w-[300px] bg-[var(--surface)] backdrop-blur-[24px] border border-[var(--border)] rounded-[20px] shadow-[0_24px_80px_rgba(16,32,51,0.16)] p-2 z-50">
+        <div className="absolute top-full left-0 mt-2 w-[240px] bg-surface-elevated border border-border-strong rounded-lg shadow-lg p-1 z-50">
           {PRODUCTS.map((p) => {
             const active = p.id === product;
             return (
@@ -65,21 +59,16 @@ export default function ProductSwitcher() {
                 href={p.href}
                 onClick={() => setOpen(false)}
                 className={clsx(
-                  "flex items-center gap-3 px-3 py-[10px] rounded-[12px] transition-colors duration-[180ms]",
-                  active ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--fg-soft)]"
+                  "flex items-center gap-3 px-3 py-2 rounded-md transition-colors duration-150",
+                  active ? "bg-surface-base" : "hover:bg-surface-base"
                 )}
               >
-                <span
-                  className="w-9 h-9 rounded-[16px] grid place-items-center text-white flex-shrink-0"
-                  style={{ background: p.accent }}
-                >
-                  <p.icon size={17} />
-                </span>
+                <p.icon size={16} className={p.accentClass} />
                 <span className="flex-1">
-                  <span className="block text-[14px] font-semibold text-[var(--fg)]">{p.label}</span>
-                  <span className="block text-[12px] text-muted">{p.sub}</span>
+                  <span className="block text-[13px] font-medium text-text-primary">{p.label}</span>
+                  <span className="block text-[11px] text-text-secondary">{p.sub}</span>
                 </span>
-                {active && <Check size={16} className="text-accent" />}
+                {active && <Check size={14} className="text-text-secondary" />}
               </Link>
             );
           })}

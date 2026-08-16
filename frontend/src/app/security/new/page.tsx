@@ -2,15 +2,13 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { GitBranch, Globe, FileArchive, ArrowRight, Loader2 } from "lucide-react";
+import { GitBranch, Globe, FileArchive, ArrowRight, Loader2, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { useCreateSecurityScan, useCreateSecurityScanZip } from "@/lib/hooks";
 
-const inputCls =
-  "w-full px-4 py-[10px] border border-[var(--border)] rounded-[10px] bg-white/50 text-[13px] text-[var(--fg)] outline-none transition-[border-color,box-shadow] duration-[180ms] focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]";
+const inputCls = "w-full py-2 px-3 border border-border-soft rounded-md bg-surface-elevated text-[13px] text-text-primary outline-none focus:border-accent transition-colors placeholder:text-text-tertiary font-mono";
 
 type Tab = "repo" | "url" | "zip";
 
@@ -77,40 +75,42 @@ export default function NewSecurityScanPage() {
   const canSubmit = tab === "repo" ? repoUrl.trim().length > 0 : tab === "url" ? url.trim().length > 0 : true;
 
   return (
-    <>
-      <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-gradient-anim text-[24px] font-semibold">New Scan</h1>
-        <Badge variant="info">Vibe-coded security analysis</Badge>
+    <div className="max-w-[700px] mx-auto pt-6">
+      <div className="flex items-center justify-between mb-8 pb-4 border-b border-border-soft">
+         <div className="flex items-center gap-3">
+            <h1 className="text-[20px] font-semibold text-text-primary">New Security Scan</h1>
+            <Badge variant="info">Vibe-coded analysis</Badge>
+         </div>
       </div>
 
-      <Card className="max-w-[680px]">
+      <div className="bg-surface-base border border-border-soft rounded-lg p-6">
         <div className="flex gap-2 mb-6">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={clsx(
-                "flex-1 flex items-center justify-center gap-2 px-3 py-[9px] rounded-[12px] text-[13px] font-medium border transition-colors duration-[180ms]",
+                "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium transition-colors duration-150",
                 tab === t.id
-                  ? "bg-[var(--accent-soft)] text-accent border-[var(--accent)]"
-                  : "border-[var(--border)] text-muted hover:text-[var(--fg-2)] hover:bg-[var(--fg-soft)]"
+                  ? "bg-accent-soft text-accent border border-accent-border"
+                  : "bg-surface-elevated text-text-secondary border border-border-strong hover:text-text-primary"
               )}
             >
-              <t.icon size={15} />
+              <t.icon size={14} />
               {t.label}
             </button>
           ))}
         </div>
 
         {error && (
-          <div className="mb-4 px-4 py-3 rounded-[10px] bg-red-50 border border-red-200 text-[13px] text-danger">
+          <div className="mb-6 px-4 py-3 rounded-md bg-status-critical/10 border border-status-critical/20 text-[13px] text-status-critical">
             {error}
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div>
-            <label className="block text-[12px] font-medium text-[var(--fg-2)] mb-1">
+            <label className="block text-[12px] font-medium text-text-secondary mb-1.5">
               {tabs.find((t) => t.id === tab)?.hint}
             </label>
             {tab === "repo" && (
@@ -120,6 +120,7 @@ export default function NewSecurityScanPage() {
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
                 disabled={busy}
+                autoFocus
               />
             )}
             {tab === "url" && (
@@ -129,21 +130,24 @@ export default function NewSecurityScanPage() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 disabled={busy}
+                autoFocus
               />
             )}
             {tab === "zip" && (
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".zip"
-                className={clsx(inputCls, "file:mr-3 file:px-3 file:py-1 file:rounded-[8px] file:border-0 file:bg-[var(--accent-soft)] file:text-accent file:text-[12px] file:font-medium")}
-                disabled={busy}
-              />
+              <div className="relative">
+                 <input
+                   ref={fileRef}
+                   type="file"
+                   accept=".zip"
+                   className="w-full py-2 px-3 border border-border-soft rounded-md bg-surface-elevated text-[13px] text-text-primary outline-none focus:border-accent transition-colors file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-[12px] file:font-medium file:bg-surface-base file:text-text-primary file:border file:border-border-strong file:hover:bg-surface-elevated file:cursor-pointer"
+                   disabled={busy}
+                 />
+              </div>
             )}
           </div>
 
           <div>
-            <label className="block text-[12px] font-medium text-[var(--fg-2)] mb-1">Project name (optional)</label>
+            <label className="block text-[12px] font-medium text-text-secondary mb-1.5">Project Name (Optional)</label>
             <input
               className={inputCls}
               placeholder="e.g. payments-service"
@@ -153,16 +157,20 @@ export default function NewSecurityScanPage() {
             />
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <p className="text-[11px] text-muted">
-              Scans run in the background — you&apos;ll get a scored report with fix-first findings.
-            </p>
-            <Button variant="primary" size="md" onClick={submit} disabled={!canSubmit || busy}>
-              {busy ? <><Loader2 size={15} className="animate-spin" /> Starting…</> : <>Start Scan <ArrowRight size={15} /></>}
+          {llmEnabled && (
+             <div className="p-3 bg-accent-soft/30 border border-accent-border rounded-md flex gap-3 text-[12px] text-text-secondary">
+               <ShieldCheck size={16} className="text-accent flex-shrink-0 mt-0.5" />
+               <p>LLM deep review is enabled in your settings. Up to 10 high-risk files will be sent for AI analysis during this scan.</p>
+             </div>
+          )}
+
+          <div className="pt-4 border-t border-border-soft flex justify-end">
+            <Button variant="primary" onClick={submit} disabled={!canSubmit || busy}>
+              {busy ? <><Loader2 size={14} className="animate-spin" /> Starting Scan...</> : <>Start Scan <ArrowRight size={14} /></>}
             </Button>
           </div>
         </div>
-      </Card>
-    </>
+      </div>
+    </div>
   );
 }

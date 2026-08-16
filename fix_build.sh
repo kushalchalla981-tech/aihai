@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > frontend/src/app/security/scans/[id]/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -177,3 +178,4 @@ export default function SecurityScanDetailPage({ params }: { params: { id: strin
     </div>
   );
 }
+INNER_EOF

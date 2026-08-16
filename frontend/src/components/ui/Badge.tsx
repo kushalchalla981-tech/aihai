@@ -4,11 +4,11 @@ import type { ReactNode } from "react";
 type Variant = "success" | "warn" | "danger" | "info" | "neutral";
 
 const variants: Record<Variant, string> = {
-  success: "bg-green-100 text-success",
-  warn: "bg-amber-100 text-warn",
-  danger: "bg-red-100 text-danger",
-  info: "bg-blue-100 text-accent",
-  neutral: "bg-gray-100 text-fg-2",
+  success: "bg-status-success/15 text-status-success border border-status-success/20",
+  warn: "bg-status-high/15 text-status-high border border-status-high/20",
+  danger: "bg-status-critical/15 text-status-critical border border-status-critical/20",
+  info: "bg-status-medium/15 text-status-medium border border-status-medium/20",
+  neutral: "bg-surface-elevated text-text-secondary border border-border-strong",
 };
 
 export default function Badge({
@@ -23,7 +23,7 @@ export default function Badge({
   return (
     <span
       className={clsx(
-        "inline-flex items-center rounded-[9999px] px-[10px] py-[2px] text-[11px] font-medium tracking-wide whitespace-nowrap",
+        "inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap",
         variants[variant],
         className
       )}
