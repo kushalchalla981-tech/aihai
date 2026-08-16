@@ -4,12 +4,15 @@ import { useState } from "react";
 
 interface Props {
   defaultChecked?: boolean;
+  checked?: boolean;
+  onChange?: (value: boolean) => void;
   label?: string;
   description?: string;
 }
 
-export default function Toggle({ defaultChecked = false, label, description }: Props) {
-  const [on, setOn] = useState(defaultChecked);
+export default function Toggle({ defaultChecked = false, checked, onChange, label, description }: Props) {
+  const [internal, setInternal] = useState(defaultChecked);
+  const on = checked ?? internal;
 
   return (
     <div className="flex items-center justify-between gap-4">
@@ -20,7 +23,11 @@ export default function Toggle({ defaultChecked = false, label, description }: P
         </div>
       )}
       <button
-        onClick={() => setOn((o) => !o)}
+        onClick={() => {
+          const next = !on;
+          setInternal(next);
+          onChange?.(next);
+        }}
         className={`relative w-10 h-[22px] rounded-[11px] transition-colors duration-[180ms] flex-shrink-0 ${on ? "bg-accent" : "bg-[var(--border)]"}`}
         role="switch"
         aria-checked={on}

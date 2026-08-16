@@ -34,7 +34,7 @@ class FakeDatabase:
     """In-memory replacement for app.database.Database used by the scan API."""
 
     def __init__(self):
-        self.tables = {"scan_runs": {}, "scan_findings": {}, "incidents": {}}
+        self.tables = {"scan_runs": {}, "scan_findings": {}, "incidents": {}, "security_projects": {}}
         self.pool = _FakePool(self)
 
     def _table(self, table: str) -> dict:
@@ -72,6 +72,10 @@ class FakeDatabase:
             record.setdefault("status", "open")
             record.setdefault("end_time", None)
             record.setdefault("resolution", None)
+            record.setdefault("created_at", now)
+            record.setdefault("updated_at", now)
+        elif table == "security_projects":
+            now = self._now()
             record.setdefault("created_at", now)
             record.setdefault("updated_at", now)
         self._table(table)[record["id"]] = record
@@ -169,6 +173,90 @@ class FakeDatabase:
             if run.get("repo_url") == repo_url and run.get("status") in ("queued", "running"):
                 return dict(run)
         return None
+
+    async def find_project(self, source_type: str, source_ref: str):
+        for project in self._table("security_projects").values():
+            if project.get("source_type") == source_type and project.get("source_ref") == source_ref:
+                return dict(project)
+        return None
+
+    async def insert_project(self, name, source_type, source_ref):
+        return await self.insert("security_projects", {
+            "name": name,
+            "source_type": source_type,
+            "source_ref": source_ref,
+        })
+
+    async def get_project(self, project_id: str):
+        return await self.get_by_id("security_projects", project_id)
+
+    async def get_projects(self, limit=50, offset=0):
+        projects = sorted(
+            self._table("security_projects").values(),
+            key=lambda p: p.get("updated_at") or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+        result = []
+        for p in projects[offset:offset + limit]:
+            record = dict(p)
+            last_scan = self._table("scan_runs").get(record.get("last_scan_id"))
+            if last_scan:
+                record["last_scan_status"] = last_scan.get("status")
+                record["last_scan_score"] = last_scan.get("score")
+                record["last_scan_grade"] = last_scan.get("grade")
+                record["last_scan_summary"] = last_scan.get("summary")
+                record["last_scan_created_at"] = last_scan.get("created_at")
+            result.append(record)
+        return result
+
+    async def update_project_last_scan(self, project_id: str, scan_id: str) -> None:
+        project = self._table("security_projects").get(project_id)
+        if project is not None:
+            project["last_scan_id"] = scan_id
+            project["updated_at"] = self._now()
+
+    async def get_scan_runs_for_project(self, project_id: str, limit=50, offset=0):
+        runs = [
+            r for r in self._table("scan_runs").values()
+            if r.get("project_id") == project_id
+        ]
+        runs.sort(key=lambda r: r.get("created_at") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        result = []
+        for run in runs[offset:offset + limit]:
+            record = dict(run)
+            record["finding_count"] = sum(
+                1 for f in self._table("scan_findings").values()
+                if f.get("scan_id") == record["id"]
+            )
+            result.append(record)
+        return result
+
+    async def update_finding_status(self, finding_id: str, status: str, note=None):
+        return await self.update_by_id("scan_findings", finding_id, {"status": status, "status_note": note})
+
+    async def query_findings(self, severity=None, category=None, status=None, project_id=None, limit=100, offset=0):
+        findings = []
+        for f in self._table("scan_findings").values():
+            if severity and f.get("severity") != severity:
+                continue
+            if category and f.get("category") != category:
+                continue
+            if status and f.get("status") != status:
+                continue
+            if project_id:
+                scan = self._table("scan_runs").get(f.get("scan_id"))
+                if not scan or scan.get("project_id") != project_id:
+                    continue
+            findings.append(dict(f))
+        findings.sort(key=lambda f: (SEVERITY_RANK.get(f.get("severity"), 9), f.get("file") or ""))
+        return findings[offset:offset + limit]
+
+    async def get_distinct_services(self) -> list[str]:
+        return sorted({
+            i.get("service")
+            for i in self._table("incidents").values()
+            if i.get("service")
+        })
 
 
 class FakeRunScan:

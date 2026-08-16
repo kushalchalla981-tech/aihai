@@ -157,8 +157,11 @@ class HealthResponse(BaseModel):
     timestamp: datetime
 
 
-ScanSeverity = Literal["critical", "high", "medium", "low"]
+ScanSeverity = Literal["critical", "high", "medium", "low", "informational"]
 ScanStatus = Literal["queued", "running", "completed", "failed"]
+FindingStatus = Literal["open", "resolved", "accepted", "false_positive"]
+Confidence = Literal["confirmed", "strong", "potential", "informational"]
+SourceType = Literal["repo", "url", "zip"]
 
 
 class ScanCreate(BaseModel):
@@ -167,7 +170,7 @@ class ScanCreate(BaseModel):
 
 
 class ScanFinding(BaseModel):
-    id: UUID
+    id: str
     scan_id: UUID
     severity: ScanSeverity
     category: str                      # "secrets" | "code" | "config" | LLM category string
@@ -178,6 +181,17 @@ class ScanFinding(BaseModel):
     description: str
     remediation: Optional[str] = None
     promoted_to_incident: bool = False
+    status: FindingStatus = "open"
+    status_note: Optional[str] = None
+    confidence: Confidence = "potential"
+    cwe: Optional[str] = None
+    owasp: Optional[str] = None
+    title: Optional[str] = None
+    impact: Optional[str] = None
+    attack_scenario: Optional[str] = None
+    verification: Optional[str] = None
+    suggested_fix: Optional[str] = None
+    source: Optional[str] = None
 
 
 class ScanRun(BaseModel):
@@ -192,9 +206,66 @@ class ScanRun(BaseModel):
     total_files: int = 0
     metadata: dict = Field(default_factory=dict)
     finding_count: int = 0
+    source_type: SourceType = "repo"
+    project_id: Optional[str] = None
+    source_ref: Optional[str] = None
+    scan_options: dict = Field(default_factory=dict)
+    scan_version: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
 
 class ScanResponse(ScanRun):
     findings: list[ScanFinding] = Field(default_factory=list)
+
+
+class SecurityProject(BaseModel):
+    id: UUID
+    name: Optional[str] = None
+    source_type: SourceType
+    source_ref: str
+    tech_stack: dict = Field(default_factory=dict)
+    last_scan_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    last_scan_status: Optional[ScanStatus] = None
+    last_scan_score: Optional[float] = None
+    last_scan_grade: Optional[Literal["A", "B", "C", "D", "F"]] = None
+    last_scan_summary: Optional[str] = None
+    last_scan_created_at: Optional[datetime] = None
+
+
+class SecurityProjectDetail(SecurityProject):
+    scans: list[ScanRun] = Field(default_factory=list)
+
+
+class SecurityScanCreate(BaseModel):
+    source_type: SourceType
+    source_ref: str = Field(..., min_length=1, max_length=2048)
+    name: Optional[str] = Field(None, max_length=255)
+    options: Optional[dict] = Field(default_factory=dict)
+
+
+class FindingStatusUpdate(BaseModel):
+    status: FindingStatus
+    note: Optional[str] = Field(None, max_length=2000)
+
+
+class CompareItem(BaseModel):
+    key: str
+    severity: str
+    category: str
+    file: str
+    line: Optional[int] = None
+    title: Optional[str] = None
+    base_status: Optional[str] = None
+    target_status: Optional[str] = None
+
+
+class ScanComparison(BaseModel):
+    base_scan_id: str
+    target_scan_id: str
+    added: list[CompareItem] = Field(default_factory=list)
+    removed: list[CompareItem] = Field(default_factory=list)
+    status_changed: list[CompareItem] = Field(default_factory=list)
+    unchanged: int = 0

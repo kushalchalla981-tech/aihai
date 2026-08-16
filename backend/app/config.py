@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     MAX_LLM_INPUT_CHARS: int = 600000
     SCAN_ALLOWED_HOSTS: list[str] = ["github.com", "gitlab.com", "bitbucket.org"]
     SCAN_MAX_CONCURRENT: int = 2
+    MAX_ZIP_MB: int = 50
+    MAX_ZIP_ENTRIES: int = 5000
+    URL_CHECK_TIMEOUT: float = 10.0
+    URL_ALLOW_PRIVATE_IP: bool = False
+    OSV_API_ENABLED: bool = False
+    SECURITY_SCAN_VERSION: str = "1.0.0"
 
     model_config = SettingsConfigDict(
         env_file=".env",

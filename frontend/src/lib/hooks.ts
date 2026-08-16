@@ -1,7 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { backfillEmbeddings, createScan, getHealth, getIncidentById, getIncidents, getLogs, getScan, getScans, promoteFinding, searchLogs } from "./api";
+import {
+  backfillEmbeddings, createScan, createSecurityScan, createSecurityScanZip, getHealth,
+  getIncidentById, getIncidents, getLogs, getScan, getScans, promoteFinding, searchLogs,
+  getSecurityProjects, getSecurityProject, getSecurityScans, getSecurityScan,
+  getSecurityFindings, updateFindingStatus, rerunSecurityScan, compareScans,
+} from "./api";
 import type { IncidentFilters, LogFilters, ScanFilters, VectorSearchQuery } from "./types";
 
 export function useHealth() {
@@ -89,5 +94,109 @@ export function usePromoteFinding() {
       qc.invalidateQueries({ queryKey: ["scans"] });
       qc.invalidateQueries({ queryKey: ["incidents"] });
     },
+  });
+}
+
+const isActiveScan = (s: { status: string } | undefined) =>
+  s?.status === "queued" || s?.status === "running";
+
+export function useSecurityProjects() {
+  return useQuery({
+    queryKey: ["security-projects"],
+    queryFn: getSecurityProjects,
+    refetchInterval: (query) =>
+      query.state.data?.some((p) => p.last_scan_status === "queued" || p.last_scan_status === "running")
+        ? 3000
+        : false,
+  });
+}
+
+export function useSecurityProject(id: string) {
+  return useQuery({
+    queryKey: ["security-project", id],
+    queryFn: () => getSecurityProject(id),
+    enabled: id.length > 0,
+    refetchInterval: (query) =>
+      query.state.data?.scans.some(isActiveScan) ? 3000 : false,
+  });
+}
+
+export function useSecurityScans() {
+  return useQuery({
+    queryKey: ["security-scans"],
+    queryFn: getSecurityScans,
+    refetchInterval: (query) =>
+      query.state.data?.some(isActiveScan) ? 3000 : false,
+  });
+}
+
+export function useSecurityScan(id: string) {
+  return useQuery({
+    queryKey: ["security-scan", id],
+    queryFn: () => getSecurityScan(id),
+    enabled: id.length > 0,
+    retry: false,
+    refetchInterval: (query) => (isActiveScan(query.state.data) ? 3000 : false),
+  });
+}
+
+export function useSecurityFindings(filters?: { severity?: string; category?: string; status?: string; project_id?: string }) {
+  return useQuery({
+    queryKey: ["security-findings", filters],
+    queryFn: () => getSecurityFindings(filters),
+  });
+}
+
+export function useCreateSecurityScan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createSecurityScan,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["security-scans"] });
+      qc.invalidateQueries({ queryKey: ["security-projects"] });
+    },
+  });
+}
+
+export function useCreateSecurityScanZip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, name }: { file: File; name?: string }) => createSecurityScanZip(file, name),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["security-scans"] });
+      qc.invalidateQueries({ queryKey: ["security-projects"] });
+    },
+  });
+}
+
+export function useUpdateFindingStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, update }: { id: string; update: Parameters<typeof updateFindingStatus>[1] }) =>
+      updateFindingStatus(id, update),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["security-findings"] });
+      qc.invalidateQueries({ queryKey: ["security-scan"] });
+    },
+  });
+}
+
+export function useRerunSecurityScan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: rerunSecurityScan,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["security-scans"] });
+      qc.invalidateQueries({ queryKey: ["security-projects"] });
+      qc.invalidateQueries({ queryKey: ["security-scan"] });
+    },
+  });
+}
+
+export function useCompareScans(projectId: string, base: string, target: string) {
+  return useQuery({
+    queryKey: ["security-compare", projectId, base, target],
+    queryFn: () => compareScans(projectId, base, target),
+    enabled: projectId.length > 0 && base.length > 0 && target.length > 0 && base !== target,
   });
 }

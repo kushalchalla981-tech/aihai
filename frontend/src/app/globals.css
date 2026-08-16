@@ -29,6 +29,22 @@
   --radius-pill: 9999px;
 }
 
+[data-product="security"] {
+  --bg: #f4f0ff;
+  --accent: #8b5cf6;
+  --accent-light: #a78bfa;
+  --accent-on: #ffffff;
+  --accent-soft: rgba(139, 92, 246, 0.14);
+}
+
+[data-product="incidents"] {
+  --bg: #eef6ff;
+  --accent: #4f8cff;
+  --accent-light: #6ba3ff;
+  --accent-on: #ffffff;
+  --accent-soft: rgba(79, 140, 255, 0.14);
+}
+
 *,
 *::before,
 *::after {

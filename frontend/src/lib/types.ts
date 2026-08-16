@@ -34,7 +34,6 @@ export interface IncidentCreate {
   affected_services?: string[];
   metadata?: Record<string, unknown>;
 }
-
 export interface IncidentUpdate {
   title?: string;
   description?: string;
@@ -113,8 +112,11 @@ export interface IncidentFilters {
 }
 
 export type ScanStatus = "queued" | "running" | "completed" | "failed";
-export type ScanSeverity = "critical" | "high" | "medium" | "low";
+export type ScanSeverity = "critical" | "high" | "medium" | "low" | "informational";
 export type ScanGrade = "A" | "B" | "C" | "D" | "F";
+export type SourceType = "repo" | "url" | "zip";
+export type FindingStatus = "open" | "resolved" | "accepted" | "false_positive";
+export type Confidence = "confirmed" | "strong" | "potential" | "informational";
 
 export interface ScanFinding {
   id: string;
@@ -128,6 +130,17 @@ export interface ScanFinding {
   description: string;
   remediation: string | null;
   promoted_to_incident: boolean;
+  status: FindingStatus;
+  status_note: string | null;
+  confidence: Confidence;
+  cwe: string | null;
+  owasp: string | null;
+  title: string | null;
+  impact: string | null;
+  attack_scenario: string | null;
+  verification: string | null;
+  suggested_fix: string | null;
+  source: string | null;
 }
 
 export interface ScanRun {
@@ -142,6 +155,11 @@ export interface ScanRun {
   total_files: number;
   metadata: Record<string, unknown>;   // sub-scores: {secrets_score, code_score, config_score, ...}
   finding_count: number;
+  source_type: SourceType;
+  project_id: string | null;
+  source_ref: string | null;
+  scan_options: Record<string, unknown>;
+  scan_version: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -153,4 +171,56 @@ export interface ScanRunDetail extends ScanRun {
 export interface ScanFilters {
   limit?: number;
   offset?: number;
+}
+
+export interface SecurityProject {
+  id: string;
+  name: string | null;
+  source_type: SourceType;
+  source_ref: string;
+  tech_stack: Record<string, unknown>;
+  last_scan_id: string | null;
+  created_at: string;
+  updated_at: string;
+  last_scan_status: ScanStatus | null;
+  last_scan_score: number | null;
+  last_scan_grade: ScanGrade | null;
+  last_scan_summary: string | null;
+  last_scan_created_at: string | null;
+}
+
+export interface SecurityProjectDetail extends SecurityProject {
+  scans: ScanRun[];
+}
+
+export interface SecurityScanCreate {
+  source_type: SourceType;
+  source_ref: string;
+  name?: string;
+  options?: Record<string, unknown>;
+}
+
+export interface FindingStatusUpdate {
+  status: FindingStatus;
+  note?: string;
+}
+
+export interface CompareItem {
+  key: string;
+  severity: string;
+  category: string;
+  file: string;
+  line: number | null;
+  title: string | null;
+  base_status: string | null;
+  target_status: string | null;
+}
+
+export interface ScanComparison {
+  base_scan_id: string;
+  target_scan_id: string;
+  added: CompareItem[];
+  removed: CompareItem[];
+  status_changed: CompareItem[];
+  unchanged: number;
 }

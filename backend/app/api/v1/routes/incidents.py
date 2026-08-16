@@ -31,6 +31,12 @@ async def list_incidents(
     )
 
 
+@router.get("/incidents/services")
+async def list_services():
+    db = await get_db()
+    return await db.get_distinct_services()
+
+
 @router.get("/incidents/{incident_id}", response_model=IncidentResponse)
 async def get_incident(incident_id: str):
     db = await get_db()
@@ -45,7 +51,24 @@ async def update_incident(incident_id: str, update: IncidentUpdate):
     try:
         db = await get_db()
         data = {k: v for k, v in update.model_dump(mode="json").items() if v is not None}
-        data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        existing = await db.get_by_id("incidents", incident_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Incident not found")
+
+        metadata = dict(existing.get("metadata") or {})
+        timeline = list(metadata.get("timeline") or [])
+        now = datetime.now(timezone.utc).isoformat()
+        if "status" in data and data["status"] != existing.get("status"):
+            timeline.append({
+                "action": "status_changed",
+                "from": existing.get("status"),
+                "to": data["status"],
+                "timestamp": now,
+            })
+            metadata["timeline"] = timeline
+            data["metadata"] = metadata
+
+        data["updated_at"] = now
         result = await db.update_by_id("incidents", incident_id, data)
         if not result:
             raise HTTPException(status_code=404, detail="Incident not found")

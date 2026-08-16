@@ -19,6 +19,10 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.database import get_db
+from app.services.zip_ingest import extract_zip, validate_zip_bytes
+from app.services.tech_stack import detect_stack
+from app.services.deps import analyze_dependencies
+from app.services.url_checker import validate_live_url, run_url_checks
 
 SCAN_TMP = Path(settings.SCAN_TMP_DIR).resolve()
 ALLOWED_HOSTS = set(settings.SCAN_ALLOWED_HOSTS)
@@ -148,95 +152,121 @@ class RULE:
     description: str = ""
     remediation: str = ""
     handler: Optional[str] = None
+    confidence: str = "potential"
+    cwe: Optional[str] = None
+    owasp: Optional[str] = None
+    impact: str = ""
+    attack_scenario: str = ""
+    verification: str = ""
 
 
 RULES: list[RULE] = [
     RULE("SECRET_AWS_KEY", "AWS Access Key", "secrets", "critical",
          None, re.compile(r"\b(?:AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16}\b"),
          description="AWS access key exposed in source",
-         remediation="Rotate the key immediately and remove it from the repo", handler="_skip_placeholder"),
+         remediation="Rotate the key immediately and remove it from the repo", handler="_skip_placeholder",
+         confidence="confirmed", cwe="CWE-798", owasp="A07:2021"),
     RULE("SECRET_OPENAI_KEY", "OpenAI API Key", "secrets", "critical",
          None, None,
          patterns=[re.compile(r"\bsk-(?:proj|svcacct|admin)-(?:[A-Za-z0-9_-]{74}|[A-Za-z0-9_-]{58})T3BlbkFJ(?:[A-Za-z0-9_-]{74}|[A-Za-z0-9_-]{58})\b"),
                    re.compile(r"\bsk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20}\b")],
          description="OpenAI API key exposed in source",
-         remediation="Revoke the key and use a secret manager"),
+         remediation="Revoke the key and use a secret manager",
+         confidence="confirmed", cwe="CWE-798", owasp="A07:2021"),
     RULE("SECRET_GITHUB_TOKEN", "GitHub Token", "secrets", "critical",
          None, None,
          patterns=[re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\b"),
                    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{22,}\b")],
          description="GitHub token exposed in source",
-         remediation="Revoke the token and remove it from the repo"),
+         remediation="Revoke the token and remove it from the repo",
+         confidence="confirmed", cwe="CWE-798", owasp="A07:2021"),
     RULE("SECRET_PRIVATE_KEY", "Private Key", "secrets", "critical",
          None, re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY(?: BLOCK)?-----"),
          description="Private key material committed to the repo",
-         remediation="Remove the key and rotate it"),
+         remediation="Remove the key and rotate it",
+         confidence="confirmed", cwe="CWE-312", owasp="A02:2021"),
     RULE("SECRET_GENERIC_API_KEY", "Generic API Key", "secrets", "high",
          None, re.compile(r"(?:api[_-]?key|apikey|secret|token)\s*[=:]\s*[\"']([^\"'\s]{16,})[\"']"),
          description="Possible hardcoded API key",
-         remediation="Move the secret to environment variables", handler="_entropy_gate"),
+         remediation="Move the secret to environment variables", handler="_entropy_gate",
+         confidence="strong", cwe="CWE-798", owasp="A07:2021"),
     RULE("SECRET_DB_URL", "Database URL with Credentials", "secrets", "high",
          None, re.compile(r"(?:postgres(?:ql)?|mysql|mongo(?:db)?\+srv|redis|amqp)://[^\s:@/]+:[^\s:@/]+@"),
          description="Database connection string with embedded credentials",
-         remediation="Use a secret manager and never commit credentials"),
+         remediation="Use a secret manager and never commit credentials",
+         confidence="confirmed", cwe="CWE-798", owasp="A07:2021"),
     RULE("SECRET_ENV_COMMITTED", "Committed .env File", "secrets", "critical",
          None, None,
          description="Environment file committed to the repo",
-         remediation="Remove the file and rotate any secrets it contained", handler="_env_filename"),
+         remediation="Remove the file and rotate any secrets it contained", handler="_env_filename",
+         confidence="confirmed", cwe="CWE-798", owasp="A07:2021"),
     RULE("SECRET_ENV_NEXT_PUBLIC", "NEXT_PUBLIC Secret", "secrets", "high",
          None, re.compile(r"NEXT_PUBLIC_[A-Z0-9_]*?(?:KEY|SECRET|TOKEN)\s*="),
          description="Secret exposed via NEXT_PUBLIC environment variable",
-         remediation="NEXT_PUBLIC vars are shipped to the browser; move secrets server-side"),
+         remediation="NEXT_PUBLIC vars are shipped to the browser; move secrets server-side",
+         confidence="strong", cwe="CWE-200", owasp="A01:2021"),
     RULE("SECRET_STRIPE", "Stripe Live Key", "secrets", "critical",
          None, re.compile(r"\bsk_live_[0-9a-zA-Z]{24}\b"),
          description="Stripe live secret key exposed",
-         remediation="Rotate the key immediately"),
+         remediation="Rotate the key immediately",
+         confidence="confirmed", cwe="CWE-798", owasp="A07:2021"),
     RULE("DANGER_EVAL", "Dangerous Code Execution", "code", "high",
          None, re.compile(r"\beval\(|exec\(|shell_exec\(|os\.system\(|subprocess\.call\(|subprocess\.Popen\("),
          description="Arbitrary code execution sink",
-         remediation="Avoid eval/exec of untrusted input; use safe parsers", handler="_literal_or_variable"),
+         remediation="Avoid eval/exec of untrusted input; use safe parsers", handler="_literal_or_variable",
+         confidence="potential", cwe="CWE-95", owasp="A03:2021"),
     RULE("DANGER_CHILD_PROCESS", "Child Process Execution", "code", "high",
          None, re.compile(r"child_process\.(?:exec|execSync|spawn|spawnSync)\("),
          description="Node child process execution",
-         remediation="Validate and sanitize command inputs", handler="_literal_or_variable"),
+         remediation="Validate and sanitize command inputs", handler="_literal_or_variable",
+         confidence="potential", cwe="CWE-78", owasp="A03:2021"),
     RULE("DANGER_XSS_INNERHTML", "Unsafe HTML Injection", "code", "high",
          None, re.compile(r"innerHTML\s*=|outerHTML\s*=|dangerouslySetInnerHTML|v-html="),
          description="Potential XSS via raw HTML injection",
-         remediation="Escape user input or use framework-safe rendering"),
+         remediation="Escape user input or use framework-safe rendering",
+         confidence="strong", cwe="CWE-79", owasp="A03:2021"),
     RULE("DANGER_SQL_CONCAT", "SQL Injection via Concatenation", "code", "high",
          None, re.compile(r"(SELECT|INSERT|UPDATE|DELETE|WHERE)"),
          description="SQL built by string concatenation may be injectable",
-         remediation="Use parameterized queries", handler="_sql_concat"),
+         remediation="Use parameterized queries", handler="_sql_concat",
+         confidence="potential", cwe="CWE-89", owasp="A03:2021"),
     RULE("DANGER_UNSAFE_YAML", "Unsafe YAML/Pickle Load", "code", "medium",
          None, re.compile(r"yaml\.load\(|yaml\.unsafe_load\(|pickle\.loads\("),
          description="Unsafe deserialization of untrusted data",
-         remediation="Use yaml.safe_load or JSON"),
+         remediation="Use yaml.safe_load or JSON",
+         confidence="strong", cwe="CWE-502", owasp="A08:2021"),
     RULE("DANGER_TEMPLATE_ESCAPE_OFF", "Template Autoescape Disabled", "code", "medium",
          None, re.compile(r"autoescape\s*=\s*False|mark_safe\(|raw="),
          description="Template escaping disabled — XSS risk",
-         remediation="Keep autoescape enabled"),
+         remediation="Keep autoescape enabled",
+         confidence="strong", cwe="CWE-79", owasp="A03:2021"),
     RULE("CONFIG_CORS_CREDENTIALS", "CORS Wildcard with Credentials", "config", "high",
          None, re.compile(r"allow_origins\s*=\s*\[?[\"']\*[\"']\]?"),
          description="CORS allows all origins, possibly with credentials",
-         remediation="Restrict allow_origins to trusted domains", handler="_cors_correlation"),
+         remediation="Restrict allow_origins to trusted domains", handler="_cors_correlation",
+         confidence="strong", cwe="CWE-942", owasp="A01:2021"),
     RULE("CONFIG_DEBUG_TRUE", "Debug Mode Enabled", "config", "medium",
          None, re.compile(r"debug\s*=\s*True|APP_DEBUG\s*=\s*true|NODE_ENV\s*=\s*[\"']development[\"']"),
          description="Debug mode enabled in production-facing code",
-         remediation="Disable debug mode in production", handler="_skip_test_paths"),
+         remediation="Disable debug mode in production", handler="_skip_test_paths",
+         confidence="potential", cwe="CWE-489", owasp="A05:2021"),
     RULE("CONFIG_HARDCODED_SECRET_KEY", "Hardcoded Secret Key", "config", "high",
          None, re.compile(r"(?:SECRET_KEY|JWT_SECRET|signing_key|SESSION_SECRET)\s*[=:]\s*[\"']([^\"']+)[\"']"),
          description="Hardcoded secret key material",
-         remediation="Generate a random key and store it in a secret manager", handler="_secret_blocklist"),
+         remediation="Generate a random key and store it in a secret manager", handler="_secret_blocklist",
+         confidence="strong", cwe="CWE-798", owasp="A07:2021"),
     RULE("CONFIG_DEFAULT_CREDS", "Default Credentials", "config", "high",
          None, None,
          patterns=[re.compile(r"(?:username|user|login)\s*[=:]\s*[\"']admin[\"']"),
                    re.compile(r"password\s*[=:]\s*[\"'](?:admin|password|123456)[\"']")],
          description="Default or weak credentials",
-         remediation="Require strong unique credentials", handler="_creds_correlation"),
+         remediation="Require strong unique credentials", handler="_creds_correlation",
+         confidence="strong", cwe="CWE-798", owasp="A07:2021"),
     RULE("CONFIG_SUPABASE_NO_RLS", "Supabase Without Row Level Security", "config", "high",
          None, None,
          description="Supabase client present but no RLS policies found",
-         remediation="Enable RLS and define policies for all tables", handler="_supabase_correlation"),
+         remediation="Enable RLS and define policies for all tables", handler="_supabase_correlation",
+         confidence="potential", cwe="CWE-284", owasp="A01:2021"),
 ]
 
 EXTENSIONS_CONF = {".py", ".js", ".ts", ".tsx", ".jsx", ".yml", ".yaml", ".json"}
@@ -398,6 +428,10 @@ def scan_repo(repo_path: Path) -> tuple[list[dict], list[tuple[str, int]], dict[
                 "evidence": "committed .env file",
                 "description": "Environment file committed to the repo",
                 "remediation": "Remove the file and rotate any secrets it contained",
+                "confidence": "confirmed",
+                "cwe": "CWE-798",
+                "owasp": "A07:2021",
+                "source": "rules",
             })
             file_hits[rel.as_posix()] = file_hits.get(rel.as_posix(), 0) + 1
 
@@ -445,6 +479,13 @@ def scan_repo(repo_path: Path) -> tuple[list[dict], list[tuple[str, int]], dict[
                         "evidence": _truncate_evidence(_mask_secret(m.group(0))),
                         "description": rule.description,
                         "remediation": rule.remediation,
+                        "confidence": rule.confidence,
+                        "cwe": rule.cwe,
+                        "owasp": rule.owasp,
+                        "impact": rule.impact,
+                        "attack_scenario": rule.attack_scenario,
+                        "verification": rule.verification,
+                        "source": "rules",
                     })
                     file_hits[rel.as_posix()] = file_hits.get(rel.as_posix(), 0) + 1
                     break
@@ -465,6 +506,10 @@ def scan_repo(repo_path: Path) -> tuple[list[dict], list[tuple[str, int]], dict[
                         "evidence": _truncate_evidence(m.group(0)),
                         "description": rule.description,
                         "remediation": rule.remediation,
+                        "confidence": rule.confidence,
+                        "cwe": rule.cwe,
+                        "owasp": rule.owasp,
+                        "source": "rules",
                     })
                     file_hits[rel.as_posix()] = file_hits.get(rel.as_posix(), 0) + 1
             elif rule.handler == "_creds_correlation":
@@ -480,6 +525,10 @@ def scan_repo(repo_path: Path) -> tuple[list[dict], list[tuple[str, int]], dict[
                         "evidence": _truncate_evidence((m1.group(0) if m1 else "") + " / " + (m2.group(0) if m2 else "")),
                         "description": rule.description,
                         "remediation": rule.remediation,
+                        "confidence": rule.confidence,
+                        "cwe": rule.cwe,
+                        "owasp": rule.owasp,
+                        "source": "rules",
                     })
                     file_hits[rel.as_posix()] = file_hits.get(rel.as_posix(), 0) + 1
 
@@ -495,6 +544,10 @@ def scan_repo(repo_path: Path) -> tuple[list[dict], list[tuple[str, int]], dict[
             "evidence": "createClient without RLS policies in repo",
             "description": "Supabase client present but no RLS policies found",
             "remediation": "Enable RLS and define policies for all tables",
+            "confidence": "potential",
+            "cwe": "CWE-284",
+            "owasp": "A01:2021",
+            "source": "rules",
         })
         file_hits[rel] = file_hits.get(rel, 0) + 1
 
@@ -503,7 +556,7 @@ def scan_repo(repo_path: Path) -> tuple[list[dict], list[tuple[str, int]], dict[
     return findings, files_with_hits, texts, total_bytes
 
 
-SEVERITY_WEIGHTS = {"critical": 25, "high": 15, "medium": 7, "low": 3}
+SEVERITY_WEIGHTS = {"critical": 25, "high": 15, "medium": 7, "low": 3, "informational": 1}
 
 KNOWN_CATEGORIES = ("secrets", "config", "code")
 SECRET_CATEGORY_HINTS = ("secret", "key", "token", "credential")
@@ -722,13 +775,14 @@ def merge_findings(rule_findings: list[dict], llm_findings: list[dict]) -> list[
     return merged
 
 
-def _finding_id(repo_url: str, rule_id: Optional[str], file: str, line: Optional[int]) -> str:
-    raw = f"{repo_url}|{rule_id or 'llm'}|{file or ''}|{line if line is not None else ''}"
+def _finding_id(repo_url: str, rule_id: Optional[str], file: str, line: Optional[int], project_id: Optional[str] = None) -> str:
+    scope = project_id or repo_url
+    raw = f"{scope}|{rule_id or 'llm'}|{file or ''}|{line if line is not None else ''}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 
 def _normalize_severity(severity: Optional[str]) -> str:
-    if severity in ("critical", "high", "medium", "low"):
+    if severity in ("critical", "high", "medium", "low", "informational"):
         return severity
     return "medium"
 
@@ -737,7 +791,8 @@ async def promote_finding_to_incident(
     db: Database, scan_run: dict, finding: dict
 ) -> Optional[dict]:
     finding_id = _finding_id(
-        scan_run["repo_url"], finding.get("rule_id"), finding.get("file") or "", finding.get("line")
+        scan_run["repo_url"], finding.get("rule_id"), finding.get("file") or "", finding.get("line"),
+        scan_run.get("project_id"),
     )
     if await db.finding_has_incident(finding_id):
         return None
@@ -772,12 +827,19 @@ async def _finalize_scan(
     findings: list[dict],
     file_hits: list[tuple[str, int]],
     texts: dict[str, str],
+    llm_mode: bool = True,
 ) -> None:
     scan_id = scan_run["id"]
     repo_url = scan_run["repo_url"]
+    project_id = scan_run.get("project_id")
+    fresh = await db.get_scan_run(scan_id)
+    if fresh is not None:
+        scan_run = fresh
+        repo_url = scan_run["repo_url"]
+        project_id = scan_run.get("project_id")
     llm_status = "skipped"
     llm_findings: list[dict] = []
-    if texts:
+    if texts and llm_mode:
         selected = select_llm_files(file_hits, texts)
         if selected:
             llm_findings, llm_status = await asyncio.to_thread(llm_review, selected)
@@ -786,7 +848,7 @@ async def _finalize_scan(
     records = []
     for finding in merged:
         records.append({
-            "id": _finding_id(repo_url, finding.get("rule_id"), finding.get("file") or "", finding.get("line")),
+            "id": _finding_id(repo_url, finding.get("rule_id"), finding.get("file") or "", finding.get("line"), project_id),
             "scan_id": scan_id,
             "severity": _normalize_severity(finding.get("severity")),
             "category": _category_of(finding),
@@ -796,9 +858,19 @@ async def _finalize_scan(
             "evidence": finding.get("evidence"),
             "description": finding.get("description") or finding.get("title") or "",
             "remediation": finding.get("remediation"),
+            "confidence": finding.get("confidence") or "potential",
+            "cwe": finding.get("cwe"),
+            "owasp": finding.get("owasp"),
+            "title": finding.get("title"),
+            "impact": finding.get("impact"),
+            "attack_scenario": finding.get("attack_scenario"),
+            "verification": finding.get("verification"),
+            "suggested_fix": finding.get("suggested_fix"),
+            "source": finding.get("source") or ("llm" if finding.get("rule_id") is None else "rules"),
         })
     if records:
-        rows = await db.pool.fetch("SELECT id FROM scan_findings WHERE scan_id = $1", scan_id)
+        ids = [r["id"] for r in records]
+        rows = await db.pool.fetch("SELECT id FROM scan_findings WHERE id = ANY($1::text[])", ids)
         existing_ids = {row["id"] for row in rows}
         fresh = [r for r in records if r["id"] not in existing_ids]
         if fresh:
@@ -810,16 +882,30 @@ async def _finalize_scan(
                         await db.insert("scan_findings", record)
                     except Exception:
                         pass
+        for record in records:
+            if record["id"] in existing_ids:
+                try:
+                    await db.update_by_id("scan_findings", record["id"], {
+                        "severity": record["severity"],
+                        "evidence": record["evidence"],
+                        "description": record["description"],
+                        "title": record["title"],
+                        "confidence": record["confidence"],
+                        "status": "open",
+                    })
+                except Exception:
+                    pass
     for finding in merged:
         if finding.get("severity") in ("critical", "high"):
             await promote_finding_to_incident(db, scan_run, finding)
-    metadata = {
+    metadata = dict(scan_run.get("metadata") or {})
+    metadata.update({
         "sub_scores": report["sub_scores"],
         "counts": report["counts"],
         "rule_findings": findings,
         "llm_findings": llm_findings,
         "llm_status": llm_status,
-    }
+    })
     summary = build_summary(scan_run, merged)
     await db.update_scan_status(
         scan_id,
@@ -830,6 +916,8 @@ async def _finalize_scan(
         total_files=len(texts),
         metadata=metadata,
     )
+    if project_id:
+        await db.update_project_last_scan(project_id, scan_id)
 
 
 async def run_scan(scan_id: str, repo_url: str) -> dict:
@@ -864,4 +952,97 @@ async def sweep_orphaned_scans() -> int:
         await db.update_scan_status(row["id"], "failed", error="server restarted mid-scan")
         count += 1
     return count
+
+
+def _stage_meta(existing: dict, stage: str, status: str) -> dict:
+    meta = dict(existing or {})
+    stages = dict(meta.get("stages") or {})
+    stages[stage] = {"status": status, "at": datetime.now(timezone.utc).isoformat()}
+    meta["stages"] = stages
+    return meta
+
+
+async def _update_stage(db, scan_id: str, stage: str, status: str, extra: Optional[dict] = None) -> None:
+    scan = await db.get_scan_run(scan_id)
+    if not scan:
+        return
+    meta = _stage_meta(scan.get("metadata") or {}, stage, status)
+    if extra:
+        meta.update(extra)
+    await db.update_scan_status(scan_id, scan["status"], metadata=meta)
+
+
+async def run_security_scan(
+    scan_id: str,
+    source_type: str,
+    source_ref: str,
+    options: Optional[dict] = None,
+) -> dict:
+    db = await get_db()
+    options = options or {}
+    llm_mode = bool(options.get("llm_review", True))
+    async with _scan_semaphore:
+        try:
+            if source_type == "repo":
+                url = validate_repo_url(source_ref)
+            elif source_type == "url":
+                url = validate_live_url(source_ref)
+            else:
+                url = source_ref
+        except ValueError as exc:
+            await db.update_scan_status(scan_id, "failed", error=str(exc))
+            return await db.get_scan_run(scan_id)
+        scan = await db.get_scan_run(scan_id)
+        try:
+            await db.update_scan_status(scan_id, "running")
+            findings: list[dict] = []
+            texts: dict[str, str] = {}
+            file_hits: list[tuple[str, int]] = []
+            stack: dict = {}
+            dependencies: list[dict] = []
+            repo_dir: Optional[Path] = None
+            zip_path: Optional[Path] = None
+
+            if source_type in ("repo", "zip"):
+                if source_type == "repo":
+                    await _update_stage(db, scan_id, "acquire", "running")
+                    repo_dir = await asyncio.to_thread(clone_repo, url, scan_id)
+                else:
+                    await _update_stage(db, scan_id, "acquire", "running")
+                    zip_path = SCAN_TMP / f"{scan_id}.zip"
+                    if not zip_path.exists():
+                        raise ScanAbortError("uploaded zip file is missing")
+                    repo_dir = SCAN_TMP / scan_id
+                    await asyncio.to_thread(extract_zip, zip_path, repo_dir)
+                try:
+                    await _update_stage(db, scan_id, "detect", "running")
+                    stack = await asyncio.to_thread(detect_stack, repo_dir)
+                    await _update_stage(db, scan_id, "static", "running")
+                    findings, file_hits, texts, _total_bytes = await asyncio.to_thread(scan_repo, repo_dir)
+                    await _update_stage(db, scan_id, "dependencies", "running")
+                    dependencies, dep_findings = await asyncio.to_thread(analyze_dependencies, repo_dir)
+                    findings.extend(dep_findings)
+                finally:
+                    _rmtree_retry(repo_dir)
+                    if zip_path is not None and zip_path.exists():
+                        try:
+                            zip_path.unlink()
+                        except OSError:
+                            pass
+            elif source_type == "url":
+                await _update_stage(db, scan_id, "dynamic", "running")
+                findings = await asyncio.to_thread(run_url_checks, url)
+            else:
+                raise ScanAbortError(f"unsupported source type: {source_type}")
+
+            await _update_stage(
+                db, scan_id, "scoring", "running",
+                extra={"tech_stack": stack, "dependencies": dependencies},
+            )
+            await _finalize_scan(db, scan, findings, file_hits, texts, llm_mode=llm_mode)
+        except ScanAbortError as exc:
+            await db.update_scan_status(scan_id, "failed", error=str(exc))
+        except Exception as exc:
+            await db.update_scan_status(scan_id, "failed", error=f"scan failed: {exc}")
+        return await db.get_scan_run(scan_id)
 

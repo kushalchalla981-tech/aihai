@@ -14,6 +14,16 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      { source: "/dashboard", destination: "/incidents/dashboard", permanent: true },
+      { source: "/logs", destination: "/incidents/logs", permanent: true },
+      { source: "/analytics", destination: "/incidents/analytics", permanent: true },
+      { source: "/scans", destination: "/security", permanent: true },
+      { source: "/scans/:path*", destination: "/security/:path*", permanent: true },
+      { source: "/settings", destination: "/incidents/settings", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

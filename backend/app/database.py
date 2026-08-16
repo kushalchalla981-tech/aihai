@@ -12,7 +12,9 @@ JSON_COLUMNS = {
     "logs": {"metadata", "parameters", "embedding"},
     "incidents": {"metadata", "affected_services"},
     "log_templates": {"metadata"},
-    "scan_runs": {"metadata"},
+    "scan_runs": {"metadata", "scan_options"},
+    "scan_findings": {},
+    "security_projects": {"tech_stack"},
 }
 
 TIMESTAMP_COLUMNS = {
@@ -82,17 +84,24 @@ CREATE TABLE IF NOT EXISTS scan_runs (
     error TEXT,
     total_files INTEGER DEFAULT 0,
     metadata TEXT DEFAULT '{}',
+    source_type TEXT NOT NULL DEFAULT 'repo'
+        CHECK (source_type IN ('repo','url','zip')),
+    project_id TEXT,
+    source_ref TEXT,
+    scan_options TEXT DEFAULT '{}',
+    scan_version TEXT,
     created_at TEXT DEFAULT NOW(),
     updated_at TEXT DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_scan_runs_status ON scan_runs(status);
 CREATE INDEX IF NOT EXISTS idx_scan_runs_created_at ON scan_runs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scan_runs_project_id ON scan_runs(project_id);
 
 CREATE TABLE IF NOT EXISTS scan_findings (
     id TEXT PRIMARY KEY,
     scan_id TEXT NOT NULL,
     severity TEXT NOT NULL
-        CHECK (severity IN ('critical','high','medium','low')),
+        CHECK (severity IN ('critical','high','medium','low','informational')),
     category TEXT NOT NULL,
     rule_id TEXT,
     file TEXT NOT NULL,
@@ -100,9 +109,167 @@ CREATE TABLE IF NOT EXISTS scan_findings (
     evidence TEXT,
     description TEXT NOT NULL,
     remediation TEXT,
-    promoted_to_incident BOOLEAN DEFAULT FALSE
+    promoted_to_incident BOOLEAN DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open','resolved','accepted','false_positive')),
+    status_note TEXT,
+    confidence TEXT DEFAULT 'potential'
+        CHECK (confidence IN ('confirmed','strong','potential','informational')),
+    cwe TEXT,
+    owasp TEXT,
+    title TEXT,
+    impact TEXT,
+    attack_scenario TEXT,
+    verification TEXT,
+    suggested_fix TEXT,
+    source TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_scan_findings_scan_id ON scan_findings(scan_id);
+CREATE INDEX IF NOT EXISTS idx_scan_findings_status ON scan_findings(status);
+
+CREATE TABLE IF NOT EXISTS security_projects (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    source_type TEXT NOT NULL
+        CHECK (source_type IN ('repo','url','zip')),
+    source_ref TEXT NOT NULL,
+    tech_stack TEXT DEFAULT '{}',
+    last_scan_id TEXT,
+    created_at TEXT DEFAULT NOW(),
+    updated_at TEXT DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_security_projects_source ON security_projects(source_type, source_ref);
+"""
+
+MIGRATIONS_SQL = """
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_runs' AND column_name = 'source_type'
+    ) THEN
+        ALTER TABLE scan_runs ADD COLUMN source_type TEXT NOT NULL DEFAULT 'repo';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_runs' AND column_name = 'project_id'
+    ) THEN
+        ALTER TABLE scan_runs ADD COLUMN project_id TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_runs' AND column_name = 'source_ref'
+    ) THEN
+        ALTER TABLE scan_runs ADD COLUMN source_ref TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_runs' AND column_name = 'scan_options'
+    ) THEN
+        ALTER TABLE scan_runs ADD COLUMN scan_options TEXT DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_runs' AND column_name = 'scan_version'
+    ) THEN
+        ALTER TABLE scan_runs ADD COLUMN scan_version TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'status'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'status_note'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN status_note TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'confidence'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN confidence TEXT DEFAULT 'potential';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'cwe'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN cwe TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'owasp'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN owasp TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'title'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN title TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'impact'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN impact TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'attack_scenario'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN attack_scenario TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'verification'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN verification TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'suggested_fix'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN suggested_fix TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scan_findings' AND column_name = 'source'
+    ) THEN
+        ALTER TABLE scan_findings ADD COLUMN source TEXT;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'scan_findings_severity_check'
+    ) THEN
+        ALTER TABLE scan_findings DROP CONSTRAINT scan_findings_severity_check;
+        ALTER TABLE scan_findings ADD CONSTRAINT scan_findings_severity_check
+            CHECK (severity IN ('critical','high','medium','low','informational'));
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'scan_runs_source_type_check'
+    ) THEN
+        ALTER TABLE scan_runs DROP CONSTRAINT scan_runs_source_type_check;
+    END IF;
+END $$;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'scan_runs_source_type_check'
+    ) THEN
+        ALTER TABLE scan_runs ADD CONSTRAINT scan_runs_source_type_check
+            CHECK (source_type IN ('repo','url','zip'));
+    END IF;
+END $$;
 """
 
 
@@ -115,6 +282,7 @@ class Database:
         self.pool = await asyncpg.create_pool(self.dsn, min_size=1, max_size=10)
         async with self.pool.acquire() as conn:
             await conn.execute(SCHEMA_SQL)
+            await conn.execute(MIGRATIONS_SQL)
 
     async def close(self):
         if self.pool:
@@ -373,6 +541,99 @@ class Database:
             "SELECT * FROM scan_runs WHERE repo_url = $1 AND status IN ('queued','running') LIMIT 1",
             repo_url)
         return self._deserialize(dict(row), "scan_runs") if row else None
+
+    async def active_scan_for_project(self, project_id: str) -> Optional[dict]:
+        row = await self.pool.fetchrow(
+            "SELECT * FROM scan_runs WHERE project_id = $1 AND status IN ('queued','running') LIMIT 1",
+            project_id)
+        return self._deserialize(dict(row), "scan_runs") if row else None
+
+    async def get_distinct_services(self) -> list[str]:
+        rows = await self.pool.fetch(
+            "SELECT DISTINCT service FROM logs WHERE service IS NOT NULL AND service != '' ORDER BY service")
+        return [r["service"] for r in rows]
+
+    async def insert_project(self, name: Optional[str], source_type: str, source_ref: str) -> dict:
+        return await self.insert("security_projects", {
+            "name": name,
+            "source_type": source_type,
+            "source_ref": source_ref,
+        })
+
+    async def get_project(self, project_id: str) -> Optional[dict]:
+        return await self.get_by_id("security_projects", project_id)
+
+    async def find_project(self, source_type: str, source_ref: str) -> Optional[dict]:
+        row = await self.pool.fetchrow(
+            "SELECT * FROM security_projects WHERE source_type = $1 AND source_ref = $2 ORDER BY created_at LIMIT 1",
+            source_type, source_ref)
+        return self._deserialize(dict(row), "security_projects") if row else None
+
+    async def get_projects(self, limit: int = 50, offset: int = 0) -> list[dict]:
+        sql = ("SELECT p.*, s.status AS last_scan_status, s.score AS last_scan_score, "
+               "s.grade AS last_scan_grade, s.summary AS last_scan_summary, "
+               "s.created_at AS last_scan_created_at "
+               "FROM security_projects p LEFT JOIN scan_runs s ON s.id = p.last_scan_id "
+               "ORDER BY p.updated_at DESC LIMIT $1 OFFSET $2")
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(sql, limit, offset)
+        return [self._deserialize(dict(r), "security_projects") for r in rows]
+
+    async def update_project_last_scan(self, project_id: str, scan_id: str) -> None:
+        await self.pool.execute(
+            "UPDATE security_projects SET last_scan_id = $1, updated_at = NOW() WHERE id = $2",
+            scan_id, project_id)
+
+    async def get_scan_runs_for_project(self, project_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
+        sql = ("SELECT s.*, COUNT(f.id)::int AS finding_count FROM scan_runs s "
+               "LEFT JOIN scan_findings f ON f.scan_id = s.id "
+               "WHERE s.project_id = $1 "
+               "GROUP BY s.id ORDER BY s.created_at DESC LIMIT $2 OFFSET $3")
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(sql, project_id, limit, offset)
+        return [self._deserialize(dict(r), "scan_runs") for r in rows]
+
+    async def update_finding_status(self, finding_id: str, status: str, note: Optional[str] = None) -> Optional[dict]:
+        data = {"status": status, "status_note": note}
+        return await self.update_by_id("scan_findings", finding_id, data)
+
+    async def query_findings(
+        self,
+        severity: Optional[str] = None,
+        category: Optional[str] = None,
+        status: Optional[str] = None,
+        project_id: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict]:
+        conditions = []
+        params = []
+        idx = 1
+        if severity:
+            conditions.append(f"f.severity = ${idx}")
+            params.append(severity)
+            idx += 1
+        if category:
+            conditions.append(f"f.category = ${idx}")
+            params.append(category)
+            idx += 1
+        if status:
+            conditions.append(f"f.status = ${idx}")
+            params.append(status)
+            idx += 1
+        if project_id:
+            conditions.append(f"s.project_id = ${idx}")
+            params.append(project_id)
+            idx += 1
+        where = "WHERE " + " AND ".join(conditions) if conditions else ""
+        sql = (f"SELECT f.*, s.project_id AS scan_project_id, s.source_type AS scan_source_type, "
+               f"s.repo_url AS scan_repo_url, s.created_at AS scan_created_at "
+               f"FROM scan_findings f JOIN scan_runs s ON s.id = f.scan_id "
+               f"{where} ORDER BY f.severity DESC, f.file ASC LIMIT ${idx} OFFSET ${idx + 1}")
+        params.extend([limit, offset])
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+        return [self._deserialize(dict(r), "scan_findings") for r in rows]
 
 
 _db: Optional[Database] = None

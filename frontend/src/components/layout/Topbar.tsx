@@ -2,12 +2,18 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Search, Bell, X } from "lucide-react";
+import ProductSwitcher, { useProduct } from "./ProductSwitcher";
 
 export default function Topbar() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [clock, setClock] = useState("");
   const notifRef = useRef<HTMLDivElement>(null);
+  const product = useProduct();
+
+  const searchPlaceholder = product === "security"
+    ? "Search findings, projects..."
+    : "Search incidents, logs...";
 
   useEffect(() => {
     function tick() {
@@ -30,11 +36,13 @@ export default function Topbar() {
 
   return (
     <header className="h-[var(--topbar-h)] bg-[var(--surface)] backdrop-blur-[20px] border-b border-[var(--border-soft)] flex items-center gap-6 px-6 flex-shrink-0">
+      <ProductSwitcher />
+
       <div className="flex-1 max-w-[420px] relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input
           type="text"
-          placeholder="Search incidents, logs..."
+          placeholder={searchPlaceholder}
           className="w-full py-2 pl-9 pr-4 border border-[var(--border)] rounded-[9999px] bg-white/50 text-[13px] text-[var(--fg)] outline-none transition-[border-color,box-shadow] duration-[180ms] focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
         />
       </div>
@@ -99,7 +107,7 @@ export default function Topbar() {
             <nav className="flex-1 py-4 flex flex-col gap-[2px]">
               {[
                 { label: "My Account", icon: "user" },
-                { label: "Settings", href: "/settings" },
+                { label: "Settings", href: product === "security" ? "/security/settings" : "/incidents/settings" },
                 { label: "Notifications", icon: "bell" },
                 { label: "Security", icon: "shield" },
               ].map((item) => (

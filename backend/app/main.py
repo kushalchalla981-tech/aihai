@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import get_db
-from app.api.v1.routes import health, logs, incidents, anomalies, search, scans
+from app.api.v1.routes import health, logs, incidents, anomalies, search, scans, security
 from app.middleware import SecurityHeadersMiddleware
 from app.services.parser import get_miner
 from app.services.scanner import sweep_orphaned_scans
@@ -70,3 +70,4 @@ app.include_router(incidents.router, prefix=settings.API_V1_PREFIX, tags=["incid
 app.include_router(anomalies.router, prefix=settings.API_V1_PREFIX, tags=["anomalies"])
 app.include_router(search.router, prefix=settings.API_V1_PREFIX, tags=["search"])
 app.include_router(scans.router, prefix=settings.API_V1_PREFIX, tags=["scans"])
+app.include_router(security.router, prefix=settings.API_V1_PREFIX, tags=["security"])
