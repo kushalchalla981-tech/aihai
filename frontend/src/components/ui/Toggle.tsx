@@ -18,8 +18,8 @@ export default function Toggle({ defaultChecked = false, checked, onChange, labe
     <div className="flex items-center justify-between gap-4">
       {(label || description) && (
         <div>
-          {label && <div className="text-[14px] font-medium">{label}</div>}
-          {description && <div className="text-[12px] text-muted">{description}</div>}
+          {label && <div className="text-[13px] font-medium text-text-primary">{label}</div>}
+          {description && <div className="text-[12px] text-text-secondary">{description}</div>}
         </div>
       )}
       <button
@@ -28,12 +28,12 @@ export default function Toggle({ defaultChecked = false, checked, onChange, labe
           setInternal(next);
           onChange?.(next);
         }}
-        className={`relative w-10 h-[22px] rounded-[11px] transition-colors duration-[180ms] flex-shrink-0 ${on ? "bg-accent" : "bg-[var(--border)]"}`}
+        className={`relative w-8 h-[18px] rounded-full transition-colors duration-150 flex-shrink-0 ${on ? "bg-accent" : "bg-surface-elevated border border-border-strong"}`}
         role="switch"
         aria-checked={on}
       >
         <span
-          className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] rounded-full bg-surface-on shadow-[0_0_0_1px_rgba(255,255,255,0.64)] transition-transform duration-[180ms] ${on ? "translate-x-[18px]" : ""}`}
+          className={`absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-text-primary transition-transform duration-150 ${on ? "translate-x-[14px]" : "bg-text-secondary"}`}
         />
       </button>
     </div>

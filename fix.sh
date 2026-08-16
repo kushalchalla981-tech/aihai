@@ -1,9 +1,10 @@
+cat << 'INNER_EOF' > frontend/src/app/security/scans/[id]/page.tsx
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, AlertTriangle, ShieldCheck, Loader2, RefreshCw } from "lucide-react";
-import { useSecurityScan, useRerunSecurityScan, useUpdateFindingStatus } from "@/lib/hooks";
+import { useSecurityScan, usePromoteFinding, useRerunSecurityScan, useUpdateFindingStatus } from "@/lib/hooks";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -20,9 +21,10 @@ const statusVariant: Record<string, "success" | "warn" | "danger" | "neutral"> =
 
 const findingStatuses: FindingStatus[] = ["open", "resolved", "accepted", "false_positive"];
 
-function FindingRow({ finding }: { finding: ScanFinding }) {
+function FindingRow({ finding, scanId }: { finding: ScanFinding; scanId: string }) {
   const [expanded, setExpanded] = useState(false);
   const update = useUpdateFindingStatus();
+  const promote = usePromoteFinding();
 
   return (
     <div className="border-b border-border-soft last:border-b-0">
@@ -31,7 +33,7 @@ function FindingRow({ finding }: { finding: ScanFinding }) {
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-medium text-text-primary">{finding.title || finding.description}</div>
           <div className="text-[11px] text-text-tertiary font-mono mt-1 truncate">
-            {finding.file}{finding.line ? `:${finding.line}` : ""} • {finding.category} • CWE: {finding.cwe || "None"}
+            {finding.file}{finding.line ? \`:\${finding.line}\` : ""} • {finding.category} • CWE: {finding.cwe || "None"}
           </div>
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -59,6 +61,16 @@ function FindingRow({ finding }: { finding: ScanFinding }) {
                   <p className="text-[13px] text-status-success leading-relaxed">{finding.remediation}</p>
                 </div>
               )}
+              <div className="pt-2">
+                 <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={finding.promoted_to_incident || promote.isPending}
+                    onClick={() => promote.mutate({ scanId, findingId: finding.id })}
+                  >
+                    {finding.promoted_to_incident ? "Incident Created" : "Create Incident"}
+                  </Button>
+              </div>
             </div>
             <div>
                <h4 className="text-[11px] uppercase tracking-wide text-text-secondary font-mono mb-1">Evidence</h4>
@@ -137,9 +149,9 @@ export default function SecurityScanDetailPage({ params }: { params: { id: strin
                   </div>
                 </div>
                 {scan.summary && <p className="text-[13px] text-text-secondary leading-relaxed pt-2 border-t border-border-soft">{scan.summary}</p>}
-                {Boolean(scan.metadata?.sub_scores) && typeof scan.metadata.sub_scores === "object" && (
+                {scan.metadata?.sub_scores && (
                    <div className="grid grid-cols-3 gap-2 mt-4 text-center border-t border-border-soft pt-4">
-                     {Object.entries(scan.metadata.sub_scores as Record<string, number>).map(([key, value]) => (
+                     {Object.entries(scan.metadata.sub_scores).map(([key, value]) => (
                         <div key={key} className="bg-surface-base border border-border-soft rounded p-2">
                           <div className="text-[14px] font-mono font-semibold text-text-primary tabular-nums">{Math.round(value as number)}</div>
                           <div className="text-[10px] text-text-tertiary uppercase tracking-wide mt-0.5">{key.replace(/_score$/, "").replace(/_/g, " ")}</div>
@@ -167,7 +179,7 @@ export default function SecurityScanDetailPage({ params }: { params: { id: strin
                 <div className="text-center py-16 text-text-tertiary text-[13px]">No findings discovered in this scan.</div>
               ) : (
                 <div className="flex flex-col">
-                  {scan.findings.map((f) => <FindingRow key={f.id} finding={f} />)}
+                  {scan.findings.map((f) => <FindingRow key={f.id} finding={f} scanId={scan.id} />)}
                 </div>
               )}
             </div>
@@ -177,3 +189,4 @@ export default function SecurityScanDetailPage({ params }: { params: { id: strin
     </div>
   );
 }
+INNER_EOF

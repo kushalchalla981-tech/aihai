@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FolderKanban, PlusCircle } from "lucide-react";
+import { PlusCircle, FolderGit2 } from "lucide-react";
 import { useSecurityProjects } from "@/lib/hooks";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -12,18 +12,14 @@ const statusVariant: Record<string, "warn" | "success" | "danger" | "neutral"> =
   queued: "warn", running: "warn", completed: "success", failed: "danger",
 };
 
-const gradeColor: Record<string, string> = {
-  A: "text-success", B: "text-accent", C: "text-warn", D: "text-warn", F: "text-danger",
-};
-
 export default function SecurityProjectsPage() {
   const router = useRouter();
   const { data: projects, isLoading } = useSecurityProjects();
 
   return (
-    <>
-      <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
-        <h1 className="text-gradient-anim text-[24px] font-semibold">Projects</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-4 border-b border-border-soft pb-4">
+        <h1 className="text-[20px] font-semibold text-text-primary">Projects</h1>
         <Button variant="primary" size="sm" onClick={() => router.push("/security/new")}>
           <PlusCircle size={14} /> New Scan
         </Button>
@@ -31,54 +27,44 @@ export default function SecurityProjectsPage() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <LoadingSkeleton key={i} className="h-28 w-full" />)}
+          {Array.from({ length: 4 }).map((_, i) => <LoadingSkeleton key={i} className="h-32 w-full rounded-lg" />)}
         </div>
       ) : !projects || projects.length === 0 ? (
         <Card className="text-center py-16">
-          <FolderKanban size={32} className="mx-auto mb-3 opacity-40" />
-          <h2 className="text-[18px] font-semibold mb-1">No projects yet</h2>
-          <p className="text-[13px] text-muted mb-5">Scan a repository, live application, or zip upload to get started.</p>
-          <Button variant="primary" size="sm" onClick={() => router.push("/security/new")}>Start a scan</Button>
+          <FolderGit2 size={24} className="mx-auto mb-3 text-text-tertiary" />
+          <h2 className="text-[16px] font-semibold mb-1 text-text-primary">No projects yet</h2>
+          <p className="text-[13px] text-text-secondary mb-5">Scan a repository, live application, or zip upload to get started.</p>
+          <Button variant="secondary" size="sm" onClick={() => router.push("/security/new")}>Start a Scan</Button>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {projects.map((p) => (
-            <button key={p.id} onClick={() => router.push(`/security/projects/${p.id}`)} className="text-left">
-              <Card hover shine glow className="h-full">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
-                    <h3 className="text-[16px] font-semibold truncate">{p.name || p.source_ref}</h3>
-                    <p className="text-[12px] text-muted font-mono truncate mt-[2px]">{p.source_ref}</p>
-                  </div>
-                  <Badge variant="neutral">{p.source_type}</Badge>
+            <Card key={p.id} hover onClick={() => router.push(`/security/projects/${p.id}`)} className="flex flex-col">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-semibold text-text-primary truncate">{p.name || p.source_ref}</h3>
+                  <p className="text-[12px] text-text-tertiary font-mono truncate mt-0.5">{p.source_ref}</p>
                 </div>
-                <div className="flex items-center gap-3 text-[12px] text-muted">
-                  {p.tech_stack && typeof p.tech_stack === "object" && (
-                    <span>{(p.tech_stack as { language?: string }).language || "Unknown stack"}</span>
-                  )}
-                  <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
-                  <span>{new Date(p.created_at).toLocaleDateString()}</span>
-                  <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
-                  <span>Updated {new Date(p.updated_at).toLocaleDateString()}</span>
+                <Badge variant="neutral" className="flex-shrink-0">{p.source_type}</Badge>
+              </div>
+
+              <div className="mt-auto pt-4 border-t border-border-soft flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[12px]">
+                   {p.last_scan_status ? (
+                      <>
+                         <Badge variant={statusVariant[p.last_scan_status] || "neutral"}>{p.last_scan_status}</Badge>
+                         <span className="text-text-tertiary font-mono ml-2 tabular-nums">{new Date(p.updated_at).toLocaleDateString()}</span>
+                      </>
+                   ) : (
+                      <span className="text-text-tertiary">No completed scans</span>
+                   )}
                 </div>
-                <div className="flex items-center gap-2 mt-4">
-                  {p.last_scan_grade ? (
-                    <>
-                      <span className={`font-mono text-[20px] font-bold ${gradeColor[p.last_scan_grade]}`}>{p.last_scan_grade}</span>
-                      <span className="font-mono text-[13px] text-[var(--fg-2)]">{p.last_scan_score ?? "—"}/100</span>
-                    </>
-                  ) : (
-                    <span className="text-[12px] text-muted">No completed scan</span>
-                  )}
-                  {p.last_scan_status && (
-                    <Badge variant={statusVariant[p.last_scan_status] || "neutral"}>{p.last_scan_status}</Badge>
-                  )}
-                </div>
-              </Card>
-            </button>
+                <div className="text-[12px] font-medium text-accent">View Details &rarr;</div>
+              </div>
+            </Card>
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }

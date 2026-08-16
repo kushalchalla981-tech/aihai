@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import {
-  LayoutDashboard, BarChart3, AlertTriangle, ScrollText, Settings, ChevronLeft,
+  LayoutDashboard, BarChart3, AlertTriangle, ScrollText, Settings, ChevronLeft, ChevronRight,
   PlusCircle, FolderKanban, ListChecks, History,
 } from "lucide-react";
 import { useProduct } from "./ProductSwitcher";
@@ -32,8 +32,8 @@ export default function Sidebar() {
   const product = useProduct();
 
   const brand = product === "security"
-    ? { mark: "VC", name: "Security Checker", links: securityLinks, accent: "#8b5cf6" }
-    : { mark: "IC", name: "Incident Copilot", links: incidentLinks, accent: "#4f8cff" };
+    ? { mark: "VC", name: "Security Checker", links: securityLinks, accentClass: "text-[#8b5cf6]" }
+    : { mark: "IC", name: "Incident Copilot", links: incidentLinks, accentClass: "text-[#3b82f6]" };
 
   const settingsLink = {
     href: product === "security" ? "/security/settings" : "/incidents/settings",
@@ -44,21 +44,17 @@ export default function Sidebar() {
   return (
     <aside
       className={clsx(
-        "flex flex-col flex-shrink-0 overflow-hidden z-20 border-r border-[var(--border-soft)]",
-        "bg-[var(--surface)] backdrop-blur-[20px] transition-all duration-[280ms]",
+        "flex flex-col flex-shrink-0 z-20 transition-all duration-200 bg-page-bg",
         collapsed ? "w-[64px]" : "w-[240px]"
       )}
     >
-      <div className="flex items-center gap-4 h-[var(--topbar-h)] px-5 border-b border-[var(--border-soft)] flex-shrink-0 whitespace-nowrap">
-        <div
-          className="w-8 h-8 rounded-[16px] grid place-items-center text-white font-bold text-[15px] flex-shrink-0"
-          style={{ background: brand.accent }}
-        >
+      <div className="flex items-center gap-3 h-[var(--topbar-h)] px-4 flex-shrink-0 whitespace-nowrap overflow-hidden">
+        <div className={clsx("w-6 h-6 rounded flex items-center justify-center text-[11px] font-bold bg-surface-elevated border border-border-strong flex-shrink-0", brand.accentClass)}>
           {brand.mark}
         </div>
         <span
           className={clsx(
-            "font-display text-base font-semibold tracking-tight transition-opacity duration-[280ms]",
+            "text-[14px] font-semibold tracking-tight transition-opacity duration-200",
             collapsed && "opacity-0"
           )}
         >
@@ -66,7 +62,7 @@ export default function Sidebar() {
         </span>
       </div>
 
-      <nav className="flex-1 p-3 flex flex-col gap-[2px] overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
         {brand.links.map(({ href, label, icon: Icon, highlight }) => {
           const active = href === "/incidents"
             ? pathname === "/incidents"
@@ -78,47 +74,46 @@ export default function Sidebar() {
               key={href}
               href={href}
               className={clsx(
-                "flex items-center gap-4 px-4 py-[10px] rounded-[10px] text-sm font-[450] whitespace-nowrap transition-colors duration-[180ms] relative",
+                "flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium whitespace-nowrap transition-colors duration-150 relative",
                 highlight
-                  ? "bg-[var(--accent-soft)] text-accent font-medium hover:bg-[var(--accent-soft)]"
+                  ? "bg-surface-elevated text-text-primary border border-border-soft hover:border-border-strong"
                   : active
-                    ? "bg-[var(--accent-soft)] text-accent font-medium"
-                    : "text-[var(--fg-2)] hover:bg-[var(--accent-soft)] hover:text-accent",
-                !highlight && active && "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-5 before:rounded-r before:bg-accent"
+                    ? "bg-accent-soft text-accent"
+                    : "text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
               )}
             >
-              <Icon size={20} className="flex-shrink-0 opacity-80" />
-              <span className={clsx("transition-opacity duration-[280ms]", collapsed && "opacity-0")}>
+              <Icon size={16} className={clsx("flex-shrink-0", active ? brand.accentClass : "opacity-80")} />
+              <span className={clsx("transition-opacity duration-200", collapsed && "opacity-0")}>
                 {label}
               </span>
             </Link>
           );
         })}
-        <div className="mt-auto" />
+        <div className="mt-auto pt-4" />
         <Link
           key={settingsLink.href}
           href={settingsLink.href}
           className={clsx(
-            "flex items-center gap-4 px-4 py-[10px] rounded-[10px] text-sm font-[450] whitespace-nowrap transition-colors duration-[180ms]",
+            "flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium whitespace-nowrap transition-colors duration-150",
             pathname.startsWith(settingsLink.href)
-              ? "bg-[var(--accent-soft)] text-accent font-medium"
-              : "text-[var(--fg-2)] hover:bg-[var(--accent-soft)] hover:text-accent"
+              ? "bg-accent-soft text-accent"
+              : "text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
           )}
         >
-          <settingsLink.icon size={20} className="flex-shrink-0 opacity-80" />
-          <span className={clsx("transition-opacity duration-[280ms]", collapsed && "opacity-0")}>
+          <settingsLink.icon size={16} className="flex-shrink-0 opacity-80" />
+          <span className={clsx("transition-opacity duration-200", collapsed && "opacity-0")}>
             {settingsLink.label}
           </span>
         </Link>
       </nav>
 
-      <div className="p-3 border-t border-[var(--border-soft)]">
+      <div className="p-3">
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="w-full p-2 rounded-[10px] text-muted grid place-items-center hover:bg-[var(--accent-soft)] hover:text-accent transition-colors duration-[180ms]"
+          className="w-full flex items-center justify-center p-2 rounded-md text-text-tertiary hover:bg-surface-elevated hover:text-text-primary transition-colors duration-150"
           aria-label="Toggle sidebar"
         >
-          <ChevronLeft size={18} className={clsx("transition-transform duration-[280ms]", collapsed && "rotate-180")} />
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
       </div>
     </aside>
