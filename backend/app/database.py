@@ -641,8 +641,9 @@ _db: Optional[Database] = None
 
 async def get_db() -> Database:
     global _db
-    if _db is None:
-        _db = Database(settings.DATABASE_URL)
+    if _db is None or _db.pool is None:
+        if _db is None:
+            _db = Database(settings.DATABASE_URL)
         await _db.connect()
     return _db
 
