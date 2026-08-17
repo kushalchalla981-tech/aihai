@@ -290,6 +290,8 @@ def _collect_dependencies(repo_path: Path) -> list[dict]:
 def analyze_dependencies(repo_path) -> tuple[list[dict], list[dict]]:
     repo_path = Path(repo_path)
     dependencies = _collect_dependencies(repo_path)
+    for dep in dependencies:
+        dep["file"] = dep["file"].as_posix()
     findings: list[dict] = []
     for dep in dependencies:
         for advisory in ADVISORIES:
@@ -303,7 +305,7 @@ def analyze_dependencies(repo_path) -> tuple[list[dict], list[dict]]:
                 "rule_id": "DEP_VULNERABLE_PACKAGE",
                 "severity": advisory["severity"],
                 "category": "dependencies",
-                "file": dep["file"].as_posix(),
+                "file": dep["file"],
                 "line": None,
                 "evidence": f"{dep['package']} {dep['raw']} — {advisory['cve']}",
                 "title": f"{dep['package']} {advisory['cve']}",
