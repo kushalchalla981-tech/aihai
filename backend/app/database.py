@@ -649,5 +649,8 @@ async def get_db() -> Database:
 
 
 async def check_db_health() -> bool:
-    db = await get_db()
-    return await db.check_health()
+    try:
+        db = await get_db()
+        return await db.check_health()
+    except Exception:
+        return False
